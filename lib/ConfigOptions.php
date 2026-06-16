@@ -32,6 +32,46 @@ class ConfigOptions
     }
 
     /**
+     * From the catalog's `os` addon-family rows, pick the Linux and Windows license
+     * planCodes. Each member is identified by "windows"/"linux" appearing in its
+     * planCode or description. Pure: no WHMCS/DB dependency.
+     *
+     * @param list<array<string, mixed>> $osFamilyRows rows with option_plan_code/description
+     * @return array{windows: ?string, linux: ?string}
+     */
+    public static function pickOsLicenses(array $osFamilyRows): array
+    {
+        $licenses = ['windows' => null, 'linux' => null];
+        foreach ($osFamilyRows as $row) {
+            $code = (string) ($row['option_plan_code'] ?? '');
+            $hay = strtolower($code . ' ' . (string) ($row['description'] ?? ''));
+            if ($licenses['windows'] === null && str_contains($hay, 'windows')) {
+                $licenses['windows'] = $code;
+            } elseif ($licenses['linux'] === null && str_contains($hay, 'linux')) {
+                $licenses['linux'] = $code;
+            }
+        }
+        return $licenses;
+    }
+
+    /**
+     * The OS license planCode implied by a chosen OS image: a Windows image needs the
+     * paid Windows license, anything else maps to the (free) Linux license. Returns
+     * null when the required planCode is absent (e.g. a legacy plan with no os family).
+     * Pure: no WHMCS/DB dependency.
+     *
+     * @param array{windows: ?string, linux: ?string} $licenses
+     * @return ?string
+     */
+    public static function impliedLicense(string $image, array $licenses): ?string
+    {
+        if (stripos($image, 'windows') !== false) {
+            return $licenses['windows'] ?? null;
+        }
+        return $licenses['linux'] ?? null;
+    }
+
+    /**
      * Pure mapping: customer selections + option-map rows -> OVH cart items.
      *
      * @param array<string, string|int> $selected $params['configoptions'] (group name => chosen value/qty)
