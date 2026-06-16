@@ -66,4 +66,16 @@ check('plan + option', Upgrade::detectChange('vps-2025-model2', 'vps-2025-model4
 check('foldQty clamps zero qty to 1', Upgrade::foldQty([['planCode' => 'ip', 'quantity' => 0]]), ['ip' => 1]);
 check('decodeOptions missing quantity -> 1', Upgrade::decodeOptions('[{"planCode":"backup"}]'), [['planCode' => 'backup', 'quantity' => 1]]);
 
+
+// --- isUpgradeTarget (Phase 2) ---
+$avail = [
+    ['planCode' => 'vps-2025-model3'],
+    ['planCode' => 'vps-2025-model4'],
+];
+check('target present (objects)', Upgrade::isUpgradeTarget($avail, 'vps-2025-model4'), true);
+check('target absent (objects)', Upgrade::isUpgradeTarget($avail, 'vps-2025-model2'), false);
+check('target present (strings)', Upgrade::isUpgradeTarget(['vps-2025-model5', 'vps-2025-model6'], 'vps-2025-model6'), true);
+check('empty list -> false', Upgrade::isUpgradeTarget([], 'vps-2025-model4'), false);
+check('empty target -> false', Upgrade::isUpgradeTarget($avail, ''), false);
+
 done();

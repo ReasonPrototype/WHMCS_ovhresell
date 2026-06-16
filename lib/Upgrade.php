@@ -5,10 +5,11 @@ namespace OvhVps;
 use WHMCS\Database\Capsule;
 
 /**
- * Executes WHMCS upgrades on an existing OVH VPS. Phase 1: add paid options
- * (backup, snapshot, additional disk, IP, Veeam) to a delivered VPS via the OVH
- * cartServiceOption flow. Add-only - removals and model downgrades are not
- * supported (the OVH API does not allow them) and are refused with a message.
+ * Executes WHMCS upgrades on an existing OVH VPS: adds paid options (backup,
+ * snapshot, additional disk, IP, Veeam) via the OVH cartServiceOption flow, and
+ * upgrades the model in place via the OVH order/upgrade flow. Add-only - option
+ * removals and model downgrades are not supported by the OVH API and are refused
+ * with a message.
  *
  * Mirrors {@see Provisioning}: a thin WHMCS-facing entrypoint (apply) plus
  * focused helpers, with the pure diff (detectChange) kept dependency-free so it
@@ -60,10 +61,33 @@ class Upgrade
     }
 
     /**
+     * Is $target an upgrade OVH offers for this VPS? Pure membership test over a
+     * /vps/{sn}/availableUpgrade response, tolerant of either a list of planCode
+     * strings or a list of objects carrying a planCode. Empty list or empty
+     * target -> false (caller then refuses, never charges).
+     *
+     * @param array<int,mixed> $availableUpgrade
+     */
+    public static function isUpgradeTarget(array $availableUpgrade, string $target): bool
+    {
+        if ($target === '') {
+            return false;
+        }
+        foreach ($availableUpgrade as $entry) {
+            $code = is_array($entry) ? (string) ($entry['planCode'] ?? '') : (string) $entry;
+            if ($code !== '' && $code === $target) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * WHMCS ChangePackage entrypoint. Resolves the live VPS, diffs the new
-     * product/options against what's provisioned, and (Phase 1) applies new paid
-     * options. Plan/model changes and any removal/downgrade are refused with a
-     * clear message rather than silently desyncing WHMCS from OVH.
+     * product/options against what's provisioned, then applies a model upgrade
+     * (in place) and/or adds new paid options. Option removals and model
+     * downgrades are refused with a clear message rather than silently desyncing
+     * WHMCS from OVH.
      *
      * @param array<string,mixed> $params server-module params (the NEW product/options)
      * @return array{success:bool, message:string}
@@ -96,36 +120,53 @@ class Upgrade
         if ($change['optionsToRemove'] !== []) {
             return ['success' => false, 'message' => 'Removing or reducing options is not supported (OVH options are cancelled separately): ' . implode(', ', $change['optionsToRemove'])];
         }
-        if ($change['planUpgrade'] !== null) {
-            // Phase 2 builds the in-place model resize; until then refuse loudly.
-            return ['success' => false, 'message' => 'Model/plan upgrades are not enabled yet (Phase 2). Configure only "Configurable Option Upgrades" for now.'];
-        }
-
-        $cycle = Helper::billingCycle($params);
-        $months = $cycle !== '' ? Term::billingCycleMonths($cycle) : null;
-
-        // Options are priced/attached against the VPS's current model; fall back
-        // to the target plan only if the model was never recorded.
-        $vpsPlanCode = $currentPlan !== '' ? $currentPlan : $targetPlan;
-        if ($vpsPlanCode === '') {
-            return ['success' => false, 'message' => 'Cannot price options: no VPS plan code recorded for this service or configured on the product.'];
-        }
-
         $client = OvhClient::fromParams($params);
-        $result = self::addOptions(
-            $client,
-            $serviceId,
-            $serviceName,
-            $endpoint,
-            $subsidiary,
-            $vpsPlanCode,
-            $months,
-            $change['optionsToAdd'],
-            $currentOptions
-        );
+        $messages = [];
 
-        Helper::log('upgrade:apply', ['service' => $serviceName, 'add' => $change['optionsToAdd']], $result, $result['success'], $serviceId);
-        return ['success' => $result['success'], 'message' => $result['message']];
+        // Model upgrade first: a bigger model resizes the VPS in place and can
+        // change which options are orderable, so options are applied afterwards.
+        if ($change['planUpgrade'] !== null) {
+            $planResult = self::plan($client, $serviceId, $serviceName, $change['planUpgrade']);
+            if (!$planResult['success']) {
+                Helper::log('upgrade:apply', ['service' => $serviceName, 'plan' => $change['planUpgrade']], $planResult['message'], false, $serviceId);
+                return $planResult;
+            }
+            $messages[] = $planResult['message'];
+            $currentPlan = $change['planUpgrade']; // options now price against the new model
+        }
+
+        if ($change['optionsToAdd'] !== []) {
+            $cycle = Helper::billingCycle($params);
+            $months = $cycle !== '' ? Term::billingCycleMonths($cycle) : null;
+
+            // Options are priced/attached against the VPS's current model; fall
+            // back to the target plan only if the model was never recorded.
+            $vpsPlanCode = $currentPlan !== '' ? $currentPlan : $targetPlan;
+            if ($vpsPlanCode === '') {
+                return ['success' => false, 'message' => 'Cannot price options: no VPS plan code recorded for this service or configured on the product.'];
+            }
+
+            $optResult = self::addOptions(
+                $client,
+                $serviceId,
+                $serviceName,
+                $endpoint,
+                $subsidiary,
+                $vpsPlanCode,
+                $months,
+                $change['optionsToAdd'],
+                $currentOptions
+            );
+            $messages[] = $optResult['message'];
+            if (!$optResult['success']) {
+                Helper::log('upgrade:apply', ['service' => $serviceName, 'change' => $change], implode(' ', $messages), false, $serviceId);
+                return ['success' => false, 'message' => implode(' ', $messages)];
+            }
+        }
+
+        $finalMessage = $messages === [] ? 'Upgrade applied.' : implode(' ', $messages);
+        Helper::log('upgrade:apply', ['service' => $serviceName, 'change' => $change], $finalMessage, true, $serviceId);
+        return ['success' => true, 'message' => $finalMessage];
     }
 
     /**
@@ -268,6 +309,63 @@ class Upgrade
                 ? 'Added ' . count($applied) . ' option(s): ' . implode(', ', array_column($applied, 'planCode')) . '.'
                 : 'Added ' . count($applied) . ', ' . count($errors) . ' failed: ' . implode('; ', $errors),
         ];
+    }
+
+    /**
+     * Upgrade the VPS to a stronger model in place (same serviceName) via the OVH
+     * order/upgrade flow. Gated by availableUpgrade (so a downgrade or unsupported
+     * target is refused), with a GET simulate as the dry-run before the paid POST.
+     * On success, reflects the new model locally and guarantees auto-renew; the
+     * resize + reboot complete asynchronously on OVH (cron refreshes model_json).
+     *
+     * @return array{success:bool, message:string}
+     */
+    public static function plan(OvhClient $client, int $serviceId, string $serviceName, string $targetPlan): array
+    {
+        $available = [];
+        try {
+            $raw = $client->get('/vps/' . $serviceName . '/availableUpgrade');
+            $available = is_array($raw) ? $raw : [];
+        } catch (\Throwable $e) {
+            Helper::log('upgrade:availableUpgrade', ['service' => $serviceName], $e->getMessage(), false, $serviceId);
+        }
+        if (!self::isUpgradeTarget($available, $targetPlan)) {
+            return ['success' => false, 'message' => 'OVH does not offer ' . $targetPlan . ' as an upgrade for this VPS (downgrade or unsupported); not ordered.'];
+        }
+
+        try {
+            // Simulate (dry-run, capture cost) then place the auto-paid upgrade order.
+            $simulate = (array) $client->get('/order/upgrade/vps/' . $serviceName . '/' . $targetPlan);
+            [$expectedCost, $currency] = Provisioning::extractPrice($simulate);
+            $order = (array) $client->post('/order/upgrade/vps/' . $serviceName . '/' . $targetPlan, [
+                'quantity' => 1,
+                'autoPayWithPreferredPaymentMethod' => true,
+            ]);
+            $orderId = (string) ($order['orderId'] ?? '');
+
+            self::recordOrder($serviceId, 'upgrade-plan', '', $orderId, [
+                'targetPlan' => $targetPlan,
+            ], $expectedCost, $currency, $simulate);
+
+            if ($orderId === '') {
+                Helper::log('upgrade:plan', ['service' => $serviceName, 'target' => $targetPlan], 'POST returned no orderId', false, $serviceId);
+                return ['success' => false, 'message' => 'Upgrade order submitted but OVH returned no orderId.'];
+            }
+
+            // Reflect the new model locally; OVH applies the resize (with a reboot)
+            // asynchronously, and the cron refresh updates model_json afterwards.
+            Database::upsertServer($serviceId, ['plan_code' => $targetPlan, 'state' => 'upgrading']);
+            try {
+                Lifecycle::ensureAutoRenew($client, $serviceName);
+            } catch (\Throwable $e) {
+                Helper::log('upgrade:ensureAutoRenew', ['service' => $serviceName], $e->getMessage(), false, $serviceId);
+            }
+
+            return ['success' => true, 'message' => 'Model upgrade to ' . $targetPlan . ' ordered (orderId ' . $orderId . '); the VPS reboots during the resize.'];
+        } catch (\Throwable $e) {
+            Helper::log('upgrade:plan', ['service' => $serviceName, 'target' => $targetPlan], $e->getMessage(), false, $serviceId);
+            return ['success' => false, 'message' => 'Plan upgrade failed: ' . $e->getMessage()];
+        }
     }
 
     /**

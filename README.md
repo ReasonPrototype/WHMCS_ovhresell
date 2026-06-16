@@ -54,7 +54,7 @@ client area, billing that matches the OVH commitment term, and automatic cancell
 | **Live stock control** | Hourly check of OVH stock per plan and per datacenter, driving WHMCS native stock control. Out-of-stock datacenters render as disabled options in the cart. |
 | **Suspend / unsuspend** | Maps to OVH `stop` / `start`. |
 | **Automatic cancellation** | On cancellation/termination, schedules OVH deletion at the end of the paid term (`renew.deleteAtExpiration`, no email token) so OVH stops billing you, and stops the VPS immediately. |
-| **Option upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`, auto-paid, with a dry-run before every charge). |
+| **Option & model upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`). It also upgrades the VPS to a bigger model in place (`ChangePackage` to a larger plan, via OVH `order/upgrade`). Both are add-only, auto-paid, and gated (orderability/`availableUpgrade` + a dry-run before every charge). |
 | **Customer control panel** | Power, VNC console, OS reinstall, snapshots, rescue mode, automated backups, Veeam, additional disks, IPs + reverse DNS, secondary DNS, available upgrades, usage graphs. |
 | **n8n tab** | When the installed OS is an n8n image, the client area shows an **n8n** tab with the editor URL (port 5678 by default). |
 | **Admin service panel** | All client actions plus admin-only controls: sync catalog, generate options, retry provisioning, set `serviceName` manually, confirm immediate termination, toggle delete-at-expiration, and view OVH cost (your margin). |
@@ -66,7 +66,6 @@ client area, billing that matches the OVH commitment term, and automatic cancell
 |---|---|
 | **No option removal / downgrade** via `ChangePackage` | OVH options are cancelled separately from the order flow; the OVH API does not expose an in-cart removal, so the module is **add-only** and refuses removals/reductions with a clear message rather than silently desyncing WHMCS from OVH. |
 | **No model downgrade** (e.g. VPS-3 → VPS-1) | OVH does not support shrinking a VPS in place; it requires a brand-new VPS plus a manual migration. The module refuses any target that is not in the VPS's `availableUpgrade` list. |
-| **No in-place model upgrade yet** | Adding paid options is supported (Phase 1). Resizing the VPS model in place (`ChangePackage` to a bigger plan) is designed but not built - see [Roadmap](#-roadmap). |
 | **Immediate hard-termination needs a token** | OVH emails a confirmation token to the account holder for an instant `POST /terminate`. The automatic path (delete-at-expiration) needs no token; for immediate deletion, paste the token into *Confirm Termination* on the admin panel. |
 | **Usage graphs are best-effort** | OVH deprecated `/use` and `/monitoring`; the module reads `/statistics`, whose exact contract varies by VPS generation. |
 | **First order on a brand-new OVH account may 403** | OVH may require a manual anti-fraud review on the first order of a new account. Validate with one test order before going live. |
@@ -316,10 +315,12 @@ order right now. The module keeps WHMCS in sync:
   both customer cancellations and admin terminations.
 - **Auto-renew**: guaranteed after delivery (synchronous path and via cron) so multi-year
   terms survive past the first engagement.
-- **Option upgrades** (`ChangePackage`): when the customer buys an extra (backup, snapshot,
+- **Upgrades** (`ChangePackage`): when the customer buys an extra (backup, snapshot,
   additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS
-  (`cartServiceOption`, auto-paid, with orderability validation + dry-run). *Add-only*:
-  removals/downgrades are refused with a message. Model upgrades: see Roadmap (Phase 2).
+  (`cartServiceOption`); it also upgrades the VPS to a bigger model in place via OVH
+  `order/upgrade`. Both are *add-only*, auto-paid, and gated (orderability/`availableUpgrade`
+  + dry-run); the model resize reboots the VPS and the cron refreshes the model afterwards.
+  Removals and downgrades are refused with a message.
 - **Client area**: power, VNC console, OS reinstall, snapshots, rescue, backups, Veeam,
   disks, IPs + reverse DNS, secondary DNS, upgrade, graphs, and an **n8n** tab shown
   automatically when the installed OS is an n8n image.
@@ -415,10 +416,10 @@ language, change it in two places (they must match):
 - **Friendly, bilingual datacenter names** ("Gravelines (France)" instead of the `GRA`
   code) in the configurable options. Designed, not yet built (depends on confirming how
   WHMCS exposes `$LANG` to configurable options).
-- **In-place VPS model upgrade** (`ChangePackage` to a larger plan) with stock validation
-  before selling. Phase 1 (adding paid options) is built; the in-place resize is designed,
-  not yet built. **Model downgrade is not possible on OVH** (requires a new VPS + migration),
-  so it will not be supported.
+- **Auto-wiring of WHMCS "Package Upgrades"**: option and in-place model upgrades
+  (`ChangePackage`) are built and gated (orderability/`availableUpgrade` + dry-run); what
+  remains is auto-configuring the product's *Package Upgrades* from the catalog (it writes
+  WHMCS core tables, so it needs a WHMCS schema check first). For now, enable those manually.
 
 ---
 

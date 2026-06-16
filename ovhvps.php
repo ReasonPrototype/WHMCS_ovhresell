@@ -98,9 +98,10 @@ function ovhvps_CreateAccount(array $params): string
 
 /**
  * Upgrade an existing VPS when the customer changes product/options in WHMCS.
- * Phase 1: adds new paid options (backup, snapshot, disk, IP, Veeam) on the
- * existing VPS via OVH cartServiceOption. Refuses model/plan changes (Phase 2)
- * and any option removal/downgrade with a clear message.
+ * Adds new paid options (backup, snapshot, disk, IP, Veeam) via OVH
+ * cartServiceOption and upgrades the model in place via OVH order/upgrade. Both
+ * are add-only and gated (orderability/availableUpgrade + dry-run). Option
+ * removals and model downgrades are refused with a clear message.
  *
  * @param array<string, mixed> $params
  * @return string 'success' or an error message.
