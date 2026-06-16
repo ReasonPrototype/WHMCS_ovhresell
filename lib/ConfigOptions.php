@@ -184,6 +184,15 @@ class ConfigOptions
         $datacenters = Catalog::getDatacenters($endpoint, $subsidiary, $planCode);
         $options = Catalog::getOptions($endpoint, $subsidiary, $planCode);
 
+        // The `os` addon family is the mandatory OS license line (free Linux vs paid
+        // Windows). It is not offered as a dropdown; instead each OS image below carries
+        // its implied license so the customer cannot mismatch the image and the license.
+        $osFamily = array_values(array_filter(
+            $options,
+            static fn (array $o): bool => ($o['family'] ?? '') === 'os'
+        ));
+        $licenses = self::pickOsLicenses($osFamily);
+
         $groupName = 'OVH VPS #' . $pid;
 
         // Reset any previous generation for this product.
@@ -200,7 +209,13 @@ class ConfigOptions
         Capsule::table('tblproductconfiglinks')->insert(['gid' => $gid, 'pid' => $pid]);
 
         $osCount = self::createDropdown($pid, $gid, self::GROUP_OS, array_map(
-            static fn (string $v): array => ['label' => $v, 'kind' => 'config', 'ovh_label' => 'vps_os', 'ovh_value' => $v],
+            static fn (string $v): array => [
+                'label' => $v,
+                'kind' => 'config',
+                'ovh_label' => 'vps_os',
+                'ovh_value' => $v,
+                'ovh_option_plan_code' => self::impliedLicense($v, $licenses),
+            ],
             $os
         ));
 
@@ -211,6 +226,10 @@ class ConfigOptions
 
         $optCount = 0;
         foreach (self::groupOptionsByFamily($options) as $family => $addons) {
+            if ($family === 'os') {
+                // Handled as the implied license on each OS image above.
+                continue;
+            }
             $label = ucfirst($family);
             // One yes/no style dropdown per family: "None" + each addon.
             $subs = [['label' => 'None', 'kind' => 'option', 'ovh_option_plan_code' => '']];
