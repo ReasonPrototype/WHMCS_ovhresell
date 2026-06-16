@@ -1,4 +1,4 @@
-# 🖥️ ovhvps - WHMCS server module for OVHcloud VPS & VPS-n8n
+# 🖥️ WHMCS OVHcloud reseller module
 
 ![WHMCS](https://img.shields.io/badge/WHMCS-9.0.x-1c4587)
 ![PHP](https://img.shields.io/badge/PHP-8.2%20%7C%208.3-777bb4)
