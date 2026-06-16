@@ -46,3 +46,5 @@ $_LANG['ssh_key_hint'] = 'Paste your SSH public key (e.g. from PuTTYgen) to enab
 
 $_LANG['erase_warning'] = 'This erases all data on the VPS.';
 $_LANG['provisioning_msg'] = 'Your VPS is still being provisioned. Please check back shortly.';
+
+$_LANG['stock_oos_combo'] = 'The selected datacenter and operating system are no longer in stock together. Please pick another datacenter or another operating system.';

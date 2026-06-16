@@ -45,3 +45,5 @@ $_LANG['ssh_key_hint'] = 'Cole a sua chave pública SSH (por exemplo, do PuTTYge
 
 $_LANG['erase_warning'] = 'Isto apaga todos os dados do VPS.';
 $_LANG['provisioning_msg'] = 'O seu VPS ainda está a ser aprovisionado. Volte daqui a pouco.';
+
+$_LANG['stock_oos_combo'] = 'O datacenter e o sistema operativo escolhidos já não têm stock em conjunto. Escolha outro datacenter ou outro sistema operativo.';
