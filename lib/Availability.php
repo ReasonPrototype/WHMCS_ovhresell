@@ -205,6 +205,67 @@ class Availability
         return $out;
     }
 
+    /**
+     * Decode the stored datacenters_json into the matrix shape, tolerating the
+     * legacy list-of-strings format (legacy entries count as both OS available).
+     *
+     * @return list<array{datacenter:string, linux:bool, windows:bool}>
+     */
+    public static function decodeMatrix(string $json): array
+    {
+        $data = json_decode($json, true);
+        if (!is_array($data)) {
+            return [];
+        }
+        $out = [];
+        foreach ($data as $entry) {
+            if (is_string($entry)) {
+                $out[] = ['datacenter' => $entry, 'linux' => true, 'windows' => true];
+                continue;
+            }
+            if (!is_array($entry)) {
+                continue;
+            }
+            $name = (string) ($entry['datacenter'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $out[] = [
+                'datacenter' => $name,
+                'linux' => !empty($entry['linux']),
+                'windows' => !empty($entry['windows']),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Pure orderability decision for a chosen datacenter (+ optional OS image)
+     * against a parsed matrix. Lenient when the matrix is empty (the checkout
+     * dry-run is the hard guard). A datacenter absent from a non-empty matrix is
+     * not orderable.
+     *
+     * @param list<array{datacenter:string, linux:bool, windows:bool}> $matrix
+     */
+    public static function matrixAllows(array $matrix, string $datacenter, ?string $osImage = null): bool
+    {
+        if ($matrix === []) {
+            return true;
+        }
+        foreach ($matrix as $row) {
+            if (strcasecmp((string) ($row['datacenter'] ?? ''), $datacenter) !== 0) {
+                continue;
+            }
+            $linux = !empty($row['linux']);
+            $windows = !empty($row['windows']);
+            if ($osImage === null) {
+                return $linux || $windows;
+            }
+            return ConfigOptions::osIsWindows($osImage) ? $windows : $linux;
+        }
+        return false;
+    }
+
     private static function statusIsUnavailable(string $status): bool
     {
         if ($status === '') {
