@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# Dependencies (rebuilt with: composer install --no-dev)
+# vendor/ is bundled into the RELEASE zip for no-SSH installs, but it is never
+# committed to source control.
+# ---------------------------------------------------------------------------
+/vendor/
+composer.phar
+
+# ---------------------------------------------------------------------------
+# Secrets and credentials - NEVER commit these
+# OVH keys live in the WHMCS Server config at runtime, not in files.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.local.php
+*.key
+*.pem
+*.p12
+*.pfx
+secrets.*
+credentials.*
+*ovh*.conf
+ovh.conf
+
+# ---------------------------------------------------------------------------
+# Build artifacts / packaging
+# Release zips are published via GitHub Releases, not tracked in source.
+# ---------------------------------------------------------------------------
+*.zip
+*.tar
+*.tar.gz
+/build/
+/dist/
+
+# ---------------------------------------------------------------------------
+# Editors / IDEs
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.fleet/
+*.swp
+*~
+
+# ---------------------------------------------------------------------------
+# OS cruft
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ---------------------------------------------------------------------------
+# Logs / temp
+# ---------------------------------------------------------------------------
+*.log
+*.tmp
+*.bak

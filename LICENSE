@@ -1,0 +1,61 @@
+Source-Available, No-Resale License
+
+Copyright (c) 2026 RaiaWeb. All rights reserved.
+
+1. Definitions
+
+   "Software" means the contents of this repository, including source code,
+   documentation, and configuration, together with any modified version.
+
+   "You" means any individual or entity exercising the permissions granted by
+   this License.
+
+   "Sell" means to charge, or seek to charge, a fee whose value derives
+   substantially from the Software, including: selling, reselling, renting,
+   leasing, sublicensing, or distributing the Software (modified or not) as a
+   paid product, download, plugin, module, or hosted service; or offering paid
+   support, installation, or customization whose primary deliverable is the
+   Software itself.
+
+2. Grant of rights
+
+   Subject to the conditions and limitation below, the copyright holder grants
+   You a worldwide, royalty-free, non-exclusive license to use, copy, modify,
+   and self-host the Software for any purpose, including running your own
+   commercial hosting or reseller business with it.
+
+3. Conditions
+
+   The above copyright notice and this License must be included in all copies
+   or substantial portions of the Software.
+
+4. Limitation (no resale)
+
+   You may NOT Sell the Software. The right to Sell the Software, and to grant
+   that right to others, is reserved exclusively to the copyright holder.
+
+   For clarity, this limitation restricts selling the Software itself. It does
+   NOT restrict charging your own customers for hosting or other services that
+   merely use the Software as part of your operation.
+
+5. Trademarks
+
+   This License does not grant permission to use the trade names, trademarks,
+   or product names of the copyright holder, except as required for reasonable
+   and customary use in describing the origin of the Software.
+
+6. Disclaimer of warranty and limitation of liability
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+   OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+   The Software provisions real, paid services on your own third-party
+   (OVHcloud) account. You are solely responsible for all costs incurred and
+   for compliance with the applicable third-party terms of service.
+
+This is not an OSI-approved open-source license.
