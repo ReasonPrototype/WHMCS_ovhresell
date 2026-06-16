@@ -112,7 +112,15 @@
 
     $(document).on("click", "#ovhvps_reinstall", function () {
         if (!window.confirm("This erases ALL data on the VPS. Continue?")) { return; }
-        run("reinstall", { image_id: $("#ovhvps_image").val() });
+        var extra = { image_id: $("#ovhvps_image").val() };
+        var sshKey = $.trim($("#ovhvps_ssh_key").val() || "");
+        if (sshKey) {
+            // Customer-supplied public key: enable key-based SSH/SFTP and skip the
+            // OVH root-password email (which is delivered to the account holder).
+            extra.ssh_key = sshKey;
+            extra.do_not_send_password = 1;
+        }
+        run("reinstall", extra);
     });
 
     // --- snapshots ---

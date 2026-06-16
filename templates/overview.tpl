@@ -76,6 +76,11 @@
         <label for="ovhvps_image">{$lang.operating_system|default:'Operating System'}</label>
         <select id="ovhvps_image" class="form-control" style="max-width:360px;"></select>
     </div>
+    <div class="form-group">
+        <label for="ovhvps_ssh_key">{$lang.ssh_key|default:'SSH public key (optional)'}</label>
+        <textarea id="ovhvps_ssh_key" class="form-control" rows="3" style="max-width:560px;" placeholder="ssh-ed25519 AAAA... you@host"></textarea>
+        <p class="text-muted" style="margin-top:6px;">{$lang.ssh_key_hint|default:'Paste your SSH public key (e.g. from PuTTYgen) to enable key-based login over SSH and SFTP. Recommended for PuTTY/FileZilla access.'}</p>
+    </div>
     <button class="btn btn-danger" id="ovhvps_reinstall" data-confirm="1">{$lang.reinstall_btn|default:'Reinstall'}</button>
 </div>
 

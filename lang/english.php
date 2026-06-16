@@ -41,6 +41,8 @@ $_LANG['vcore'] = 'vCore';
 $_LANG['memory'] = 'Memory (GB)';
 $_LANG['disk'] = 'Disk (GB)';
 $_LANG['operating_system'] = 'Operating System';
+$_LANG['ssh_key'] = 'SSH public key (optional)';
+$_LANG['ssh_key_hint'] = 'Paste your SSH public key (e.g. from PuTTYgen) to enable key-based login over SSH and SFTP. Recommended for PuTTY/FileZilla access.';
 
 $_LANG['erase_warning'] = 'This erases all data on the VPS.';
 $_LANG['provisioning_msg'] = 'Your VPS is still being provisioned. Please check back shortly.';

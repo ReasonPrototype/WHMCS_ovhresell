@@ -40,6 +40,8 @@ $_LANG['vcore'] = 'vCore';
 $_LANG['memory'] = 'Memória (GB)';
 $_LANG['disk'] = 'Disco (GB)';
 $_LANG['operating_system'] = 'Sistema Operativo';
+$_LANG['ssh_key'] = 'Chave pública SSH (opcional)';
+$_LANG['ssh_key_hint'] = 'Cole a sua chave pública SSH (por exemplo, do PuTTYgen) para ativar o acesso por SSH e SFTP. Recomendado para usar PuTTY/FileZilla.';
 
 $_LANG['erase_warning'] = 'Isto apaga todos os dados do VPS.';
 $_LANG['provisioning_msg'] = 'O seu VPS ainda está a ser aprovisionado. Volte daqui a pouco.';
