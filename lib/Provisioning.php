@@ -80,10 +80,11 @@ class Provisioning
         $config = self::withDefaults($selection['config'], $cfg);
         $options = $selection['options'];
 
-        // Don't order into a datacenter that's out of stock for this plan.
+        // Don't order into a datacenter that's out of stock for the chosen OS.
         $chosenDc = self::pickValue($config, 'vps_datacenter');
-        if ($chosenDc !== null && !Availability::isDatacenterOrderable($endpoint, $subsidiary, $planCode, $chosenDc)) {
-            return self::fail($serviceId, 'The selected datacenter (' . $chosenDc . ') is currently out of stock for this plan; the order was not placed.');
+        $chosenOs = self::pickValue($config, 'vps_os');
+        if ($chosenDc !== null && !Availability::isDatacenterOrderable($endpoint, $subsidiary, $planCode, $chosenDc, $chosenOs)) {
+            return self::fail($serviceId, 'The selected datacenter (' . $chosenDc . ') is out of stock for the chosen operating system; the order was not placed.');
         }
 
         self::record($serviceId, [
