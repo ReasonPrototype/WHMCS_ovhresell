@@ -8,7 +8,9 @@
  *  - AfterCronJob: reconcile pending provisioning (resolve delivered serviceNames).
  */
 
+use OvhVps\Availability;
 use OvhVps\Cron;
+use OvhVps\Database;
 use OvhVps\Helper;
 use OvhVps\Lifecycle;
 use OvhVps\OvhClient;
@@ -57,8 +59,75 @@ add_hook('AfterCronJob', 1, static function (): void {
 });
 
 /**
+ * Before the customer pays, re-check the chosen datacenter + OS against OVH
+ * live, so they cannot buy a combination that ran out since the hourly cron.
+ * Fail-safe: on any OVH error fall back to the cached matrix, and on any local
+ * parsing error do not block (the checkout dry-run is the final guard).
+ */
+add_hook('ShoppingCartValidateCheckout', 1, static function (array $vars): array {
+    $errors = [];
+    $cartProducts = $_SESSION['cart']['products'] ?? [];
+    if (!is_array($cartProducts) || $cartProducts === []) {
+        return $errors;
+    }
+    $lang = Helper::lang((string) ($_SESSION['Language'] ?? 'english'));
+    $message = (string) ($lang['stock_oos_combo']
+        ?? 'The selected datacenter and operating system are no longer in stock together.');
+
+    foreach ($cartProducts as $cartProduct) {
+        try {
+            $pid = (int) ($cartProduct['pid'] ?? 0);
+            if ($pid <= 0) {
+                continue;
+            }
+            $product = \WHMCS\Database\Capsule::table('tblproducts')->where('id', $pid)->first();
+            if (!$product || ($product->servertype ?? '') !== 'ovhvps') {
+                continue;
+            }
+            $params = Helper::paramsForProduct($pid);
+            if ($params === null) {
+                continue;
+            }
+            $cfg = Helper::cfg($params);
+            $planCode = trim($cfg['plan_code']);
+            if ($planCode === '') {
+                continue;
+            }
+            $endpoint = Helper::endpointKey($params);
+            $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'FR'));
+
+            $chosen = Availability::cartSelection($pid, (array) ($cartProduct['configoptions'] ?? []));
+            $dc = $chosen['datacenter'];
+            if ($dc === null) {
+                continue; // no datacenter chosen yet; nothing to validate
+            }
+            $os = $chosen['os'];
+
+            try {
+                $client = OvhClient::fromParams($params);
+                $matrix = Availability::parseDatacenterMatrix(
+                    $client->get('/vps/order/rule/datacenter', ['planCode' => $planCode, 'ovhSubsidiary' => $subsidiary])
+                );
+                $ok = Availability::matrixAllows($matrix, $dc, $os);
+            } catch (\Throwable $e) {
+                Helper::log('hook:checkout-live', ['pid' => $pid, 'dc' => $dc, 'os' => $os], $e->getMessage(), false);
+                $ok = Availability::isDatacenterOrderable($endpoint, $subsidiary, $planCode, $dc, $os);
+            }
+            if (!$ok) {
+                $errors[] = $message;
+            }
+        } catch (\Throwable $e) {
+            Helper::log('hook:checkout', ['pid' => $cartProduct['pid'] ?? null], $e->getMessage(), false);
+        }
+    }
+    return array_values(array_unique($errors));
+});
+
+/**
  * Inject the tiny stock script on the order/cart pages so out-of-stock
- * datacenters (marked "… - Fora de Stock") render as disabled options.
+ * datacenters (marked "... - Fora de Stock") render as disabled options, and
+ * embed the per-OS availability matrix so the OS and Datacenter dropdowns can
+ * react to each other.
  */
 add_hook('ClientAreaHeaderOutput', 1, static function (array $vars): string {
     $script = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
@@ -66,7 +135,12 @@ add_hook('ClientAreaHeaderOutput', 1, static function (array $vars): string {
         return '';
     }
     $base = rtrim((string) ($GLOBALS['CONFIG']['SystemURL'] ?? ''), '/');
-    return '<script src="' . $base . '/modules/servers/ovhvps/assets/js/ovhvps.stock.js"></script>';
+    $payload = json_encode(
+        \OvhVps\Availability::cartStockData(),
+        JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    );
+    return '<script type="application/json" id="ovhvps-stock">' . $payload . '</script>'
+        . '<script src="' . $base . '/modules/servers/ovhvps/assets/js/ovhvps.stock.js"></script>';
 });
 
 /**

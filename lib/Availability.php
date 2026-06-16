@@ -274,6 +274,107 @@ class Availability
     }
 
     /**
+     * Resolve the chosen datacenter code and OS image for a product from the
+     * cart's selected configurable options, mapping WHMCS option values to OVH
+     * values via mod_ovhvps_option_map. Returns nulls when not resolvable (the
+     * caller stays lenient). Logs its input/output so the cart shape can be
+     * confirmed against the live Module Log.
+     *
+     * @param array<int|string, mixed> $configoptions cart product's configoptions
+     * @return array{datacenter: ?string, os: ?string}
+     */
+    public static function cartSelection(int $pid, array $configoptions): array
+    {
+        $result = ['datacenter' => null, 'os' => null];
+
+        $gid = Capsule::table('tblproductconfiglinks')->where('pid', $pid)->value('gid');
+        if (!$gid) {
+            return $result;
+        }
+        $groups = Capsule::table('tblproductconfigoptions')
+            ->where('gid', $gid)
+            ->whereIn('optionname', [ConfigOptions::GROUP_DATACENTER, ConfigOptions::GROUP_OS])
+            ->get();
+
+        foreach ($groups as $group) {
+            $chosen = $configoptions[$group->id] ?? null;
+            if ($chosen === null) {
+                continue;
+            }
+            // Dropdown selections arrive as the sub-option id.
+            $sub = Capsule::table('tblproductconfigoptionssub')->where('id', (int) $chosen)->first();
+            $value = $sub
+                ? ConfigOptions::stripMarker((string) $sub->optionname)
+                : ConfigOptions::stripMarker((string) $chosen);
+
+            $ovhLabel = ($group->optionname === ConfigOptions::GROUP_DATACENTER) ? 'vps_datacenter' : 'vps_os';
+            $ovhValue = Capsule::table(Database::OPTION_MAP)
+                ->where('pid', $pid)
+                ->where('ovh_label', $ovhLabel)
+                ->where('whmcs_option_value', $value)
+                ->value('ovh_value');
+            $resolved = $ovhValue !== null ? (string) $ovhValue : $value;
+
+            if ($ovhLabel === 'vps_datacenter') {
+                $result['datacenter'] = $resolved;
+            } else {
+                $result['os'] = $resolved;
+            }
+        }
+        Helper::log('availability:cartSelection', ['pid' => $pid, 'configoptions' => $configoptions], $result, true);
+        return $result;
+    }
+
+    /**
+     * Build the front-end stock payload for the cart: per-product the per-OS
+     * matrix (keyed by lowercased OVH datacenter code) and the datacenter
+     * value-to-code map, so the JS can react without another API call.
+     *
+     * @return array{matrix: array<int, array<string, array{linux:bool, windows:bool}>>, dc: array<int, array<string, string>>}
+     */
+    public static function cartStockData(): array
+    {
+        $out = ['matrix' => [], 'dc' => []];
+        $products = Capsule::table('tblproducts')->where('servertype', 'ovhvps')->get();
+        foreach ($products as $product) {
+            $params = Helper::paramsForProduct((int) $product->id);
+            if ($params === null) {
+                continue;
+            }
+            $cfg = Helper::cfg($params);
+            $planCode = trim($cfg['plan_code']);
+            if ($planCode === '') {
+                continue;
+            }
+            $endpoint = Helper::endpointKey($params);
+            $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'FR'));
+            $row = Database::getAvailability($endpoint, $subsidiary, $planCode);
+            if ($row === null) {
+                continue;
+            }
+            $byCode = [];
+            foreach (self::decodeMatrix((string) ($row['datacenters_json'] ?? '[]')) as $m) {
+                $byCode[strtolower((string) $m['datacenter'])] = [
+                    'linux' => (bool) $m['linux'],
+                    'windows' => (bool) $m['windows'],
+                ];
+            }
+            $out['matrix'][(int) $product->id] = $byCode;
+
+            $dcMap = [];
+            $rows = Capsule::table(Database::OPTION_MAP)
+                ->where('pid', $product->id)
+                ->where('ovh_label', 'vps_datacenter')
+                ->get();
+            foreach ($rows as $r) {
+                $dcMap[ConfigOptions::stripMarker((string) $r->whmcs_option_value)] = strtolower((string) $r->ovh_value);
+            }
+            $out['dc'][(int) $product->id] = $dcMap;
+        }
+        return $out;
+    }
+
+    /**
      * Mark out-of-stock datacenters as "<name> - Fora de Stock" in the product's
      * generated "Datacenter" option (and restore the clean name when stock
      * returns). A datacenter is out of stock only when BOTH Linux and Windows are
