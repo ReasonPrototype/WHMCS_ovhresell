@@ -144,6 +144,8 @@ class Database
                 $t->string('family', 32)->nullable();
                 $t->string('option_plan_code');
                 $t->string('description')->nullable();
+                $t->boolean('mandatory')->default(false);
+                $t->boolean('is_default')->default(false);
                 $t->longText('raw_json')->nullable();
                 $t->timestamp('synced_at')->nullable();
             });
@@ -180,6 +182,12 @@ class Database
         if ($schema->hasTable(self::ORDERS) && !$schema->hasColumn(self::ORDERS, 'kind')) {
             $schema->table(self::ORDERS, static function ($t): void {
                 $t->string('kind', 32)->default('create');
+            });
+        }
+        if ($schema->hasTable(self::CAT_OPTIONS) && !$schema->hasColumn(self::CAT_OPTIONS, 'mandatory')) {
+            $schema->table(self::CAT_OPTIONS, static function ($t): void {
+                $t->boolean('mandatory')->default(false);
+                $t->boolean('is_default')->default(false);
             });
         }
     }

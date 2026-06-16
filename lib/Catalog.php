@@ -70,6 +70,13 @@ class Catalog
             foreach (($plan['addonFamilies'] ?? []) as $family) {
                 $familyName = (string) ($family['name'] ?? '');
                 $kind = self::classifyFamily($familyName);
+                // OVH flags a family `mandatory` when the cart must carry one of its
+                // addons (e.g. storage on vps-2027-model3, automatedBackup on the 2025
+                // models). Which families are mandatory varies by plan/generation, so we
+                // carry the flag (and the family's `default` planCode) through to the
+                // config-option generator instead of hard-coding any family name.
+                $mandatory = !empty($family['mandatory']) ? 1 : 0;
+                $defaultCode = isset($family['default']) ? (string) $family['default'] : '';
                 foreach (($family['addons'] ?? []) as $addonCode) {
                     $addonCode = (string) $addonCode;
                     $addon = $addonIndex[$addonCode] ?? null;
@@ -78,6 +85,8 @@ class Catalog
                         'family' => $kind,
                         'option_plan_code' => $addonCode,
                         'description' => (string) ($addon['invoiceName'] ?? $addonCode),
+                        'mandatory' => $mandatory,
+                        'is_default' => ($defaultCode !== '' && $defaultCode === $addonCode) ? 1 : 0,
                         'raw_json' => $addon ? json_encode($addon) : null,
                     ];
                 }

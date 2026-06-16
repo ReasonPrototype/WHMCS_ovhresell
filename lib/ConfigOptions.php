@@ -179,6 +179,53 @@ class ConfigOptions
     }
 
     /**
+     * Build the dropdown sub-options for one addon family from its catalog rows.
+     *
+     * A family OVH flags as mandatory (the cart must carry one of its addons, e.g.
+     * storage on vps-2027-model3) is offered WITHOUT a "None" choice and leads with
+     * its catalog default, so an order can never miss a required addon (the
+     * "Addon of type storage is missing" checkout error). An optional family keeps
+     * "None" first, so the customer is never silently charged for an extra they did
+     * not pick. Pure: no WHMCS/DB dependency.
+     *
+     * @param list<array<string,mixed>> $addons CAT_OPTIONS rows for a single family
+     * @return list<array{label:string,kind:string,ovh_option_plan_code:string}>
+     */
+    public static function familySubOptions(array $addons): array
+    {
+        $mandatory = false;
+        foreach ($addons as $addon) {
+            if (!empty($addon['mandatory'])) {
+                $mandatory = true;
+                break;
+            }
+        }
+
+        // Lead with the OVH-default addon; the sort is stable (PHP 8.0+) so the
+        // remaining addons keep their catalog order.
+        usort($addons, static fn (array $a, array $b): int =>
+            (!empty($b['is_default']) ? 1 : 0) <=> (!empty($a['is_default']) ? 1 : 0));
+
+        $subs = [];
+        if (!$mandatory) {
+            // Optional family: customer may decline it (no charge by default).
+            $subs[] = ['label' => 'None', 'kind' => 'option', 'ovh_option_plan_code' => ''];
+        }
+        foreach ($addons as $addon) {
+            $planCode = (string) ($addon['option_plan_code'] ?? '');
+            if ($planCode === '') {
+                continue;
+            }
+            $subs[] = [
+                'label' => ((string) ($addon['description'] ?? '')) ?: $planCode,
+                'kind' => 'option',
+                'ovh_option_plan_code' => $planCode,
+            ];
+        }
+        return $subs;
+    }
+
+    /**
      * Build WHMCS configurable options for a product from the cached catalog and
      * record the OVH mapping. Idempotent per product (re-runs replace the group).
      *
@@ -245,17 +292,13 @@ class ConfigOptions
                 // Handled as the implied license on each OS image above.
                 continue;
             }
-            $label = ucfirst($family);
-            // One yes/no style dropdown per family: "None" + each addon.
-            $subs = [['label' => 'None', 'kind' => 'option', 'ovh_option_plan_code' => '']];
-            foreach ($addons as $addon) {
-                $subs[] = [
-                    'label' => $addon['description'] ?: $addon['option_plan_code'],
-                    'kind' => 'option',
-                    'ovh_option_plan_code' => $addon['option_plan_code'],
-                ];
+            // One dropdown per family. Mandatory families (storage, ...) omit "None"
+            // and lead with the OVH default; optional ones keep "None" first.
+            $subs = self::familySubOptions($addons);
+            if (!$subs) {
+                continue;
             }
-            $optCount += self::createDropdown($pid, $gid, $label, $subs);
+            $optCount += self::createDropdown($pid, $gid, ucfirst($family), $subs);
         }
 
         Helper::log('configoptions:generate', ['pid' => $pid, 'plan' => $planCode], [

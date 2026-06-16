@@ -82,4 +82,56 @@ check('map datacenter -> config only, no option', ConfigOptions::map(
     'options' => [],
 ]);
 
+// --- familySubOptions(): mandatory families drop "None"; optional ones keep it ---
+
+// Optional family (mandatory flag off): "None" leads, then the addons in order.
+check('familySubOptions optional keeps None first', ConfigOptions::familySubOptions([
+    ['option_plan_code' => 'backup-1', 'description' => 'Daily', 'mandatory' => 0, 'is_default' => 0],
+    ['option_plan_code' => 'backup-7', 'description' => 'Weekly', 'mandatory' => 0, 'is_default' => 0],
+]), [
+    ['label' => 'None', 'kind' => 'option', 'ovh_option_plan_code' => ''],
+    ['label' => 'Daily', 'kind' => 'option', 'ovh_option_plan_code' => 'backup-1'],
+    ['label' => 'Weekly', 'kind' => 'option', 'ovh_option_plan_code' => 'backup-7'],
+]);
+
+// Mandatory family with a default (e.g. storage on vps-2027): no "None", default
+// addon promoted to first, the rest keeping catalog order.
+check('familySubOptions mandatory drops None and leads with default', ConfigOptions::familySubOptions([
+    ['option_plan_code' => 'storage-50', 'description' => '50 GB', 'mandatory' => 1, 'is_default' => 0],
+    ['option_plan_code' => 'storage-100', 'description' => '100 GB', 'mandatory' => 1, 'is_default' => 1],
+    ['option_plan_code' => 'storage-200', 'description' => '200 GB', 'mandatory' => 1, 'is_default' => 0],
+]), [
+    ['label' => '100 GB', 'kind' => 'option', 'ovh_option_plan_code' => 'storage-100'],
+    ['label' => '50 GB', 'kind' => 'option', 'ovh_option_plan_code' => 'storage-50'],
+    ['label' => '200 GB', 'kind' => 'option', 'ovh_option_plan_code' => 'storage-200'],
+]);
+
+// Mandatory family with no default (OVH default=null, e.g. 2025 automatedBackup):
+// still no "None", addons keep catalog order so the first one is pre-selected.
+check('familySubOptions mandatory no default keeps catalog order', ConfigOptions::familySubOptions([
+    ['option_plan_code' => 'auto-backup-1', 'description' => '1 backup', 'mandatory' => 1, 'is_default' => 0],
+    ['option_plan_code' => 'auto-backup-7', 'description' => '7 backups', 'mandatory' => 1, 'is_default' => 0],
+]), [
+    ['label' => '1 backup', 'kind' => 'option', 'ovh_option_plan_code' => 'auto-backup-1'],
+    ['label' => '7 backups', 'kind' => 'option', 'ovh_option_plan_code' => 'auto-backup-7'],
+]);
+
+// Optional family with a default: "None" still leads (no silent charge), then the
+// default addon, then the rest.
+check('familySubOptions optional with default still leads with None', ConfigOptions::familySubOptions([
+    ['option_plan_code' => 'backup-std', 'description' => 'Standard', 'mandatory' => 0, 'is_default' => 0],
+    ['option_plan_code' => 'backup-adv', 'description' => 'Advanced', 'mandatory' => 0, 'is_default' => 1],
+]), [
+    ['label' => 'None', 'kind' => 'option', 'ovh_option_plan_code' => ''],
+    ['label' => 'Advanced', 'kind' => 'option', 'ovh_option_plan_code' => 'backup-adv'],
+    ['label' => 'Standard', 'kind' => 'option', 'ovh_option_plan_code' => 'backup-std'],
+]);
+
+// A blank description falls back to the planCode as the visible label.
+check('familySubOptions blank description falls back to planCode', ConfigOptions::familySubOptions([
+    ['option_plan_code' => 'storage-x', 'description' => '', 'mandatory' => 1, 'is_default' => 0],
+]), [
+    ['label' => 'storage-x', 'kind' => 'option', 'ovh_option_plan_code' => 'storage-x'],
+]);
+
 done();
