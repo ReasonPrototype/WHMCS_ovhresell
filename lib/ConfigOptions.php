@@ -230,8 +230,12 @@ class ConfigOptions
             $os
         ));
 
+        // The visible label becomes a friendly "City, Country" name (Datacenters::label),
+        // while ovh_value stays the raw OVH datacenter code. All consumers (map(),
+        // cartSelection(), cartStockData(), applyDatacenterStock()) resolve via the
+        // option_map's ovh_value, so the order and the stock UX keep working unchanged.
         $dcCount = self::createDropdown($pid, $gid, self::GROUP_DATACENTER, array_map(
-            static fn (string $v): array => ['label' => $v, 'kind' => 'config', 'ovh_label' => 'vps_datacenter', 'ovh_value' => $v],
+            static fn (string $v): array => ['label' => Datacenters::label($v), 'kind' => 'config', 'ovh_label' => 'vps_datacenter', 'ovh_value' => $v],
             $datacenters
         ));
 

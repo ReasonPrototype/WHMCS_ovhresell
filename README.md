@@ -393,12 +393,19 @@ After rebuilding `vendor/`, package the `ovhvps/` folder **with** `vendor/` and 
 The client area is translatable via `lang/` (`english.php`, `portuguese-pt.php`); WHMCS
 loads the file matching the client's language and falls back to English.
 
-One storefront string is **not** in the language files: the out-of-stock marker appended to
-datacenter options defaults to Portuguese (`" - Fora de Stock"`). If you want a different
-language, change it in two places (they must match):
+Some storefront strings are **not** in the language files, because they are baked into the
+generated Configurable Options (whose option names are static text, not run through `$LANG`).
+The out-of-stock marker appended to datacenter options defaults to Portuguese
+(`" - Fora de Stock"`). If you want a different language, change it in two places (they must
+match):
 
 - `lib/ConfigOptions.php` → `OOS_MARKER`
 - `assets/js/ovhvps.stock.js` → `MARKER`
+
+The Datacenter options also show friendly **"City, Country"** names in English (e.g.
+`Warsaw, Poland` instead of `WAW`); the OVH code is still what gets ordered, only the visible
+label changes. Edit or extend the mapping in `lib/Datacenters.php` → `NAMES` (an unmapped code
+falls back to its raw code). Re-run "Generate OVH options" after changing it.
 
 ---
 
@@ -417,9 +424,6 @@ language, change it in two places (they must match):
 
 ## 🗺️ Roadmap
 
-- **Friendly, bilingual datacenter names** ("Gravelines (France)" instead of the `GRA`
-  code) in the configurable options. Designed, not yet built (depends on confirming how
-  WHMCS exposes `$LANG` to configurable options).
 - **Auto-wiring of WHMCS "Package Upgrades"**: option and in-place model upgrades
   (`ChangePackage`) are built and gated (orderability/`availableUpgrade` + dry-run); what
   remains is auto-configuring the product's *Package Upgrades* from the catalog (it writes
