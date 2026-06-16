@@ -56,6 +56,17 @@ class ConfigOptions
     }
 
     /**
+     * Whether an OS image is a Windows image (so it needs the paid Windows
+     * license and Windows datacenter capacity). Single source of truth for the
+     * Linux-vs-Windows decision, shared by impliedLicense(), the availability
+     * matrix guard, and (mirrored) the cart JS. Pure: no WHMCS/DB dependency.
+     */
+    public static function osIsWindows(string $image): bool
+    {
+        return stripos($image, 'windows') !== false;
+    }
+
+    /**
      * The OS license planCode implied by a chosen OS image: a Windows image needs the
      * paid Windows license, anything else maps to the (free) Linux license. Returns
      * null when the required planCode is absent (e.g. a legacy plan with no os family).
@@ -66,7 +77,7 @@ class ConfigOptions
      */
     public static function impliedLicense(string $image, array $licenses): ?string
     {
-        if (stripos($image, 'windows') !== false) {
+        if (self::osIsWindows($image)) {
             return $licenses['windows'] ?? null;
         }
         return $licenses['linux'] ?? null;
