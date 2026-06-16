@@ -336,6 +336,10 @@ OVH delivers n8n (and Docker, Plesk, ...) as **"distribution + application" OS i
 not as separate plans - they show up as OS values in the catalog (e.g. `Debian 12 - n8n`).
 After *Generate OVH options*, the **Operating System** option already lists them; the
 customer picks `Debian 12 - n8n` to get n8n pre-installed on the VPS they chose.
+The **Operating System** option is a single dropdown of all images; the module
+automatically attaches the matching OVH OS license addon (free Linux or paid
+Windows) from the chosen image, so the license can never be mismatched. Set your
+Windows markup as the price of the Windows image sub-options (Linux stays at 0).
 
 For a dedicated "VPS n8n" product, set the product's **Default OS** to the n8n image (and
 optionally do not expose the OS option). The client area shows the **n8n** tab with the

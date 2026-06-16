@@ -73,8 +73,9 @@ class Provisioning
         $client = OvhClient::fromParams($params);
 
         // Customer selections -> OVH config + options, with product defaults.
-        // n8n (and Docker, Plesk, ...) are just OS images in the catalog, so a
-        // customer choosing "Debian 12 - n8n" as their OS is all that's needed.
+        // The chosen OS image (vps_os) carries its mandatory license addon (free
+        // Linux or paid Windows), baked in by ConfigOptions::generate(); n8n/Docker
+        // variants are just OS images, so the image choice drives both.
         $selection = ConfigOptions::parse($params);
         $config = self::withDefaults($selection['config'], $cfg);
         $options = $selection['options'];
