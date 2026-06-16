@@ -159,6 +159,52 @@ class Availability
         return array_values(array_unique($inStock));
     }
 
+    /**
+     * Defensive parse of the vps.order.rule.Datacenters response into a per-OS
+     * matrix. Handles a bare list, a {datacenters:[...]} wrapper, list-of-strings
+     * and list-of-objects carrying status/linuxStatus/windowsStatus. Each OS is
+     * available unless its per-OS status is explicitly unavailable; when a per-OS
+     * field is absent it falls back to the generic status. A bare string counts
+     * as both OS available. Pure: no WHMCS/HTTP dependency.
+     *
+     * @param mixed $raw
+     * @return list<array{datacenter:string, linux:bool, windows:bool}>
+     */
+    public static function parseDatacenterMatrix($raw): array
+    {
+        $list = $raw;
+        if (is_array($raw) && isset($raw['datacenters']) && is_array($raw['datacenters'])) {
+            $list = $raw['datacenters'];
+        }
+        if (!is_array($list)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($list as $entry) {
+            if (is_string($entry)) {
+                $out[] = ['datacenter' => $entry, 'linux' => true, 'windows' => true];
+                continue;
+            }
+            if (!is_array($entry)) {
+                continue;
+            }
+            $name = (string) ($entry['datacenter'] ?? $entry['name'] ?? $entry['code'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $general = strtolower((string) ($entry['status'] ?? $entry['availability'] ?? ''));
+            $linuxRaw = strtolower((string) ($entry['linuxStatus'] ?? ''));
+            $windowsRaw = strtolower((string) ($entry['windowsStatus'] ?? ''));
+            $out[] = [
+                'datacenter' => $name,
+                'linux' => $linuxRaw !== '' ? !self::statusIsUnavailable($linuxRaw) : !self::statusIsUnavailable($general),
+                'windows' => $windowsRaw !== '' ? !self::statusIsUnavailable($windowsRaw) : !self::statusIsUnavailable($general),
+            ];
+        }
+        return $out;
+    }
+
     private static function statusIsUnavailable(string $status): bool
     {
         if ($status === '') {
