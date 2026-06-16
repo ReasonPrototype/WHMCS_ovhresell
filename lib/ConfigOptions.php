@@ -27,8 +27,9 @@ class ConfigOptions
     /** Strip the out-of-stock marker so a selected value still maps to OVH. */
     public static function stripMarker(string $value): string
     {
-        $pos = mb_strpos($value, self::OOS_MARKER);
-        return $pos !== false ? rtrim(mb_substr($value, 0, $pos)) : $value;
+        // strpos is sufficient because OOS_MARKER is a plain ASCII/Latin string.
+        $pos = strpos($value, self::OOS_MARKER);
+        return $pos !== false ? rtrim(substr($value, 0, $pos)) : $value;
     }
 
     /**
@@ -103,6 +104,12 @@ class ConfigOptions
                         'label' => (string) $row['ovh_label'],
                         'value' => (string) $row['ovh_value'],
                     ];
+                    // An OS image may imply a mandatory license addon (free Linux or
+                    // paid Windows) stored on the same row; emit it alongside the config.
+                    $implied = (string) ($row['ovh_option_plan_code'] ?? '');
+                    if ($implied !== '') {
+                        $options[] = ['planCode' => $implied, 'quantity' => 1];
+                    }
                     continue 2;
                 }
             }
