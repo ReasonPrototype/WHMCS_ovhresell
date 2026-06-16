@@ -201,7 +201,7 @@ class Database
     }
 
     /**
-     * @param list<string> $datacenters in-stock datacenter codes
+     * @param list<array{datacenter:string, linux:bool, windows:bool}>|list<string> $datacenters matrix rows (or legacy codes)
      * @param mixed $raw
      */
     public static function saveAvailability(string $endpoint, string $subsidiary, string $planCode, bool $available, array $datacenters, $raw, string $checkedAt): void

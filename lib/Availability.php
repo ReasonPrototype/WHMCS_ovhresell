@@ -100,9 +100,9 @@ class Availability
     }
 
     /**
-     * Ask OVH whether a plan is orderable in any datacenter.
+     * Ask OVH for the per-OS availability matrix for a plan.
      *
-     * @return array{available:bool, datacenters:list<string>, raw:mixed}
+     * @return array{available:bool, datacenters:list<array{datacenter:string, linux:bool, windows:bool}>, raw:mixed}
      */
     public static function checkPlan(OvhClient $client, string $planCode, string $subsidiary): array
     {
@@ -110,53 +110,19 @@ class Availability
             'planCode' => $planCode,
             'ovhSubsidiary' => $subsidiary,
         ]);
-        $datacenters = self::parseInStockDatacenters($raw);
+        $matrix = self::parseDatacenterMatrix($raw);
+        $available = false;
+        foreach ($matrix as $row) {
+            if (!empty($row['linux']) || !empty($row['windows'])) {
+                $available = true;
+                break;
+            }
+        }
         return [
-            'available' => count($datacenters) > 0,
-            'datacenters' => $datacenters,
+            'available' => $available,
+            'datacenters' => $matrix,
             'raw' => $raw,
         ];
-    }
-
-    /**
-     * Defensive parse of the (undocumented) vps.order.rule.Datacenters response.
-     * Handles a bare list, a {datacenters:[...]} wrapper, list-of-strings and
-     * list-of-objects with status/availability fields. Anything not explicitly
-     * unavailable counts as in stock.
-     *
-     * @param mixed $raw
-     * @return list<string> in-stock datacenter codes
-     */
-    public static function parseInStockDatacenters($raw): array
-    {
-        $list = $raw;
-        if (is_array($raw) && isset($raw['datacenters']) && is_array($raw['datacenters'])) {
-            $list = $raw['datacenters'];
-        }
-        if (!is_array($list)) {
-            return [];
-        }
-
-        $inStock = [];
-        foreach ($list as $entry) {
-            if (is_string($entry)) {
-                $inStock[] = $entry;
-                continue;
-            }
-            if (!is_array($entry)) {
-                continue;
-            }
-            $name = (string) ($entry['datacenter'] ?? $entry['name'] ?? $entry['code'] ?? '');
-            $status = strtolower((string) ($entry['status'] ?? $entry['availability'] ?? ''));
-            if ($name === '') {
-                continue;
-            }
-            if (self::statusIsUnavailable($status)) {
-                continue;
-            }
-            $inStock[] = $name;
-        }
-        return array_values(array_unique($inStock));
     }
 
     /**
@@ -294,37 +260,29 @@ class Availability
     }
 
     /**
-     * Order-time guard for the chosen datacenter. Lenient when we have no
-     * datacenter data (the checkout dry-run is the hard guard).
+     * Order-time guard for the chosen datacenter and (optionally) OS image.
+     * Lenient when we have no data (the checkout dry-run is the hard guard).
      */
-    public static function isDatacenterOrderable(string $endpoint, string $subsidiary, string $planCode, string $datacenter): bool
+    public static function isDatacenterOrderable(string $endpoint, string $subsidiary, string $planCode, string $datacenter, ?string $osImage = null): bool
     {
         $row = Database::getAvailability($endpoint, $subsidiary, $planCode);
         if ($row === null) {
             return true;
         }
-        $datacenters = json_decode((string) ($row['datacenters_json'] ?? '[]'), true);
-        if (!is_array($datacenters) || $datacenters === []) {
-            return true;
-        }
-        foreach ($datacenters as $dc) {
-            if (strcasecmp((string) $dc, $datacenter) === 0) {
-                return true;
-            }
-        }
-        return false;
+        $matrix = self::decodeMatrix((string) ($row['datacenters_json'] ?? '[]'));
+        return self::matrixAllows($matrix, $datacenter, $osImage);
     }
 
     /**
      * Mark out-of-stock datacenters as "<name> - Fora de Stock" in the product's
-     * generated "Datacenter" configurable option (and restore the clean name
-     * when stock returns). The options stay visible; ovhvps.stock.js disables any
-     * option whose text carries the marker, so the customer sees them but cannot
-     * pick one OVH can't deliver. No-op if config options weren't generated.
+     * generated "Datacenter" option (and restore the clean name when stock
+     * returns). A datacenter is out of stock only when BOTH Linux and Windows are
+     * unavailable; per-OS blocking is handled by the cart JS. No-op if config
+     * options were not generated.
      *
-     * @param list<string> $inStock in-stock datacenter codes
+     * @param list<array{datacenter:string, linux:bool, windows:bool}> $matrix
      */
-    private static function applyDatacenterStock(int $pid, array $inStock): void
+    private static function applyDatacenterStock(int $pid, array $matrix): void
     {
         $maps = Capsule::table(Database::OPTION_MAP)
             ->where('pid', $pid)
@@ -346,12 +304,17 @@ class Availability
             return;
         }
 
-        $inStockSet = array_map('strtolower', $inStock);
+        $orderable = [];
+        foreach ($matrix as $row) {
+            if (!empty($row['linux']) || !empty($row['windows'])) {
+                $orderable[] = strtolower((string) ($row['datacenter'] ?? ''));
+            }
+        }
         $marker = ConfigOptions::OOS_MARKER;
         foreach ($maps as $map) {
             $canonical = (string) $map->whmcs_option_value;
             $code = strtolower((string) $map->ovh_value);
-            $outOfStock = !in_array($code, $inStockSet, true);
+            $outOfStock = !in_array($code, $orderable, true);
             $desired = $canonical . ($outOfStock ? $marker : '');
 
             Capsule::table('tblproductconfigoptionssub')
