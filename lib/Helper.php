@@ -180,6 +180,19 @@ class Helper
     }
 
     /**
+     * True when a string looks like an OVH-assigned VPS serviceName
+     * (e.g. "vps-2bfa6fc6.vps.ovh.net" or legacy "vps123456.ovh.net"), as
+     * opposed to a WHMCS-generated hostname. Used to decide whether the WHMCS
+     * service "domain" field can be trusted as an OVH identifier: the auto
+     * hostname must never be sent to /vps/{name} or OVH 404s ("does not exist").
+     */
+    public static function looksLikeOvhVpsName(string $value): bool
+    {
+        $value = strtolower(trim($value));
+        return $value !== '' && preg_match('/^vps[0-9a-z\-]*\.(?:[a-z0-9\-]+\.)?ovh\.net$/', $value) === 1;
+    }
+
+    /**
      * Load the client-area language strings for a given WHMCS language,
      * falling back to English.
      *

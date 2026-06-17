@@ -28,8 +28,14 @@ class Lifecycle
                 return (string) $server['service_name'];
             }
         }
+        // Only trust the WHMCS "domain" field as an OVH identifier when it looks
+        // like an OVH-assigned VPS name. The module auto-generates customer
+        // hostnames (e.g. xxx.raiaweb-individual.pt) which OVH does not know, so
+        // sending them to /vps/{name} returns "This service does not exist".
+        // Returning null instead lets the client area show the clean
+        // "provisioning" message until the cron resolves the real serviceName.
         $domain = trim((string) ($params['domain'] ?? ''));
-        return $domain !== '' ? $domain : null;
+        return ($domain !== '' && Helper::looksLikeOvhVpsName($domain)) ? $domain : null;
     }
 
     /**
