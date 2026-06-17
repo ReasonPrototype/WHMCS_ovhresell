@@ -42,6 +42,10 @@ $_LANG['vcore'] = 'vCore';
 $_LANG['memory'] = 'Memória (GB)';
 $_LANG['disk'] = 'Disco (GB)';
 $_LANG['operating_system'] = 'Sistema Operativo';
+$_LANG['login_user'] = 'Utilizador';
+$_LANG['login_password'] = 'Palavra-passe';
+$_LANG['access_hint'] = 'Use estes dados no separador Consola, ou por SSH.';
+$_LANG['access_preparing'] = 'Estamos a preparar o seu acesso. Esta página mostrará o seu login em breve.';
 $_LANG['ssh_key'] = 'Chave pública SSH (opcional)';
 $_LANG['ssh_key_hint'] = 'Cole a sua chave pública SSH (por exemplo, do PuTTYgen) para ativar o acesso por SSH e SFTP. Recomendado para usar PuTTY/FileZilla.';
 

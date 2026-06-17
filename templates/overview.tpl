@@ -49,6 +49,19 @@
         <button class="btn btn-warning" data-action="stop" data-confirm="1">{$lang.power_off|default:'Power Off'}</button>
         <button class="btn btn-primary" data-action="reboot" data-confirm="1">{$lang.reboot|default:'Reboot'}</button>
     </div>
+    {if !$isN8n}
+        {if $access.state == 'ready'}
+            <table class="table ovhvps-info" style="margin-bottom:16px;">
+                <tbody>
+                    <tr><th>{$lang.login_user|default:'Username'}</th><td>{$access.user}</td></tr>
+                    <tr><th>{$lang.login_password|default:'Password'}</th><td><code>{$access.password}</code></td></tr>
+                </tbody>
+            </table>
+            <p class="text-muted">{$lang.access_hint|default:'Use these in the Console tab, or over SSH.'}</p>
+        {elseif $access.state != '' && $access.state != 'failed'}
+            <div class="alert alert-info">{$lang.access_preparing|default:'We are preparing your access. This page will show your login shortly.'}</div>
+        {/if}
+    {/if}
     <table class="table table-striped ovhvps-info">
         <tbody>
             <tr><th>{$lang.hostname|default:'Hostname'}</th><td>{$hostname}</td></tr>

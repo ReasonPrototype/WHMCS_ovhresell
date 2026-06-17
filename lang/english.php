@@ -43,6 +43,10 @@ $_LANG['vcore'] = 'vCore';
 $_LANG['memory'] = 'Memory (GB)';
 $_LANG['disk'] = 'Disk (GB)';
 $_LANG['operating_system'] = 'Operating System';
+$_LANG['login_user'] = 'Username';
+$_LANG['login_password'] = 'Password';
+$_LANG['access_hint'] = 'Use these in the Console tab, or over SSH.';
+$_LANG['access_preparing'] = 'We are preparing your access. This page will show your login shortly.';
 $_LANG['ssh_key'] = 'SSH public key (optional)';
 $_LANG['ssh_key_hint'] = 'Paste your SSH public key (e.g. from PuTTYgen) to enable key-based login over SSH and SFTP. Recommended for PuTTY/FileZilla access.';
 

@@ -198,6 +198,13 @@ function ovhvps_ClientArea(array $params): array
         $os = (string) ($server['os'] ?? ($info['os'] ?? ''));
         $isN8n = stripos($os, 'n8n') !== false;
 
+        // Access credentials for the overview panel (plain VPS, once bootstrapped).
+        $access = [
+            'state' => (string) ($server['access_state'] ?? ''),
+            'user' => (string) ($server['root_user'] ?? ''),
+            'password' => Helper::decrypt((string) ($server['root_pass_enc'] ?? '')),
+        ];
+
         return [
             'templatefile' => 'templates/overview',
             'vars' => [
@@ -206,6 +213,7 @@ function ovhvps_ClientArea(array $params): array
                 'isN8n' => $isN8n,
                 'hostname' => (string) ($params['domain'] ?? ''),
                 'os' => $os,
+                'access' => $access,
                 'csrf' => $_SESSION['ovhvps_csrf'],
                 'lang' => $lang,
                 'error' => $error,
