@@ -43,7 +43,14 @@ class Cron
 
             try {
                 $client = OvhClient::fromParams($params);
-                $name = self::firstUnmappedVps($client);
+                // Deterministic: resolve the serviceName for THIS order.
+                $orderId = (string) ($order->order_id ?? '');
+                $name = Provisioning::serviceNameFromOrder($client, $orderId);
+                if ($name === null) {
+                    // Fallback: a single unambiguous new VPS vs the before-snapshot.
+                    $before = (array) json_decode((string) ($order->vps_before_json ?? '[]'), true);
+                    $name = self::resolveByDiff($client, $before);
+                }
                 if ($name === null) {
                     $stillPending++;
                     continue;
@@ -83,26 +90,32 @@ class Cron
     }
 
     /**
-     * Return the first OVH VPS not yet mapped to any WHMCS service, or null.
+     * Diff live /vps against a before-snapshot and return the single new VPS not
+     * already mapped to any service. Returns null on zero or ambiguous (>1)
+     * candidates, so the cron never guesses a wrong mapping when several orders
+     * are delivering at once.
+     *
+     * @param list<string> $before serviceNames that existed before the order
      */
-    private static function firstUnmappedVps(OvhClient $client): ?string
+    private static function resolveByDiff(OvhClient $client, array $before): ?string
     {
         $all = $client->get('/vps');
         if (!is_array($all)) {
             return null;
         }
-        $mapped = Capsule::table(Database::SERVERS)
+        $beforeSet = array_flip(array_map('strval', $before));
+        $mapped = array_flip(array_map('strval', Capsule::table(Database::SERVERS)
             ->whereNotNull('service_name')
             ->pluck('service_name')
-            ->all();
-        $mappedSet = array_flip(array_map('strval', $mapped));
+            ->all()));
 
+        $candidates = [];
         foreach ($all as $name) {
             $name = (string) $name;
-            if (!isset($mappedSet[$name])) {
-                return $name;
+            if (!isset($beforeSet[$name]) && !isset($mapped[$name])) {
+                $candidates[] = $name;
             }
         }
-        return null;
+        return count($candidates) === 1 ? $candidates[0] : null;
     }
 }

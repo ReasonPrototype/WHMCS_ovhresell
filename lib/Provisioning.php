@@ -179,6 +179,9 @@ class Provisioning
             self::record($serviceId, [
                 'order_id' => $orderId !== '' ? $orderId : null,
                 'status' => $orderId !== '' ? 'checking' : 'failed',
+                // Persisted so the cron can diff deterministically if the
+                // order-details lookup is not yet available.
+                'vps_before_json' => json_encode($before),
             ]);
             if ($orderId === '') {
                 return self::fail($serviceId, 'Checkout did not return an orderId.');
@@ -242,11 +245,19 @@ class Provisioning
         $beforeSet = array_flip($before);
         for ($i = 0; $i < $attempts; $i++) {
             try {
-                $now = self::listVpsNames($client);
-                foreach ($now as $name) {
-                    if (!isset($beforeSet[$name])) {
-                        return $name;
-                    }
+                // Prefer the deterministic order-details lookup.
+                $fromOrder = self::serviceNameFromOrder($client, $orderId);
+                if ($fromOrder !== null) {
+                    return $fromOrder;
+                }
+                // Fallback: accept the diff only when exactly one new VPS
+                // appeared, so concurrent deliveries never cross-map.
+                $new = array_values(array_filter(
+                    self::listVpsNames($client),
+                    static fn ($name) => !isset($beforeSet[$name])
+                ));
+                if (count($new) === 1) {
+                    return $new[0];
                 }
             } catch (\Throwable $e) {
                 // ignore and retry
@@ -256,6 +267,44 @@ class Provisioning
             }
         }
         return null;
+    }
+
+    /**
+     * Resolve the delivered serviceName deterministically from the OVH order.
+     * Each order detail exposes a "domain" field which, for a VPS line, is the
+     * serviceName. Returns null until OVH has populated it.
+     *
+     * LIVE-VERIFY: confirm in the Module Log that
+     * GET /me/order/{id}/details/{detailId} returns "domain" == the
+     * vps-*.ovh.net serviceName; adjust the key if OVH names it differently.
+     */
+    public static function serviceNameFromOrder(OvhClient $client, string $orderId): ?string
+    {
+        if ($orderId === '') {
+            return null;
+        }
+        $detailIds = $client->get('/me/order/' . rawurlencode($orderId) . '/details');
+        if (!is_array($detailIds)) {
+            return null;
+        }
+        foreach ($detailIds as $detailId) {
+            $detail = self::safeOrderDetail($client, $orderId, (string) $detailId);
+            $domain = is_array($detail) ? trim((string) ($detail['domain'] ?? '')) : '';
+            if ($domain !== '' && Helper::looksLikeOvhVpsName($domain)) {
+                return $domain;
+            }
+        }
+        return null;
+    }
+
+    /** GET an order detail, returning null instead of throwing. */
+    private static function safeOrderDetail(OvhClient $client, string $orderId, string $detailId)
+    {
+        try {
+            return $client->get('/me/order/' . rawurlencode($orderId) . '/details/' . rawurlencode($detailId));
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     /** @return list<string> */

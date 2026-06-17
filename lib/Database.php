@@ -184,6 +184,11 @@ class Database
                 $t->string('kind', 32)->default('create');
             });
         }
+        if ($schema->hasTable(self::ORDERS) && !$schema->hasColumn(self::ORDERS, 'vps_before_json')) {
+            $schema->table(self::ORDERS, static function ($t): void {
+                $t->longText('vps_before_json')->nullable();
+            });
+        }
         if ($schema->hasTable(self::CAT_OPTIONS) && !$schema->hasColumn(self::CAT_OPTIONS, 'mandatory')) {
             $schema->table(self::CAT_OPTIONS, static function ($t): void {
                 $t->boolean('mandatory')->default(false);
