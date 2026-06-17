@@ -42,6 +42,9 @@ $_LANG['datacenter'] = 'Datacenter';
 $_LANG['vcore'] = 'vCore';
 $_LANG['memory'] = 'Memory (GB)';
 $_LANG['disk'] = 'Disk (GB)';
+// Storage tab section headings.
+$_LANG['storage_vps_disk'] = 'VPS disk';
+$_LANG['storage_additional_disks'] = 'Additional disks';
 $_LANG['operating_system'] = 'Operating System';
 $_LANG['login_user'] = 'Username';
 $_LANG['login_password'] = 'Password';

@@ -125,7 +125,13 @@
 </div>
 
 <div class="ovhvps-tab-pane" data-pane="storage">
-    <p>Disks attached to your VPS.</p>
+    <h4>{$lang.storage_vps_disk|default:'VPS disk'}</h4>
+    <table class="table table-striped ovhvps-info" style="margin-bottom:16px;">
+        <tbody>
+            <tr><th>{$lang.disk|default:'Disk (GB)'}</th><td>{$ovh.disk|default:'-'}</td></tr>
+        </tbody>
+    </table>
+    <h4>{$lang.storage_additional_disks|default:'Additional disks'}</h4>
     <div id="ovhvps_disks_panel">Loading…</div>
 </div>
 
