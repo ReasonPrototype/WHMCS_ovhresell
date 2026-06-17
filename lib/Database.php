@@ -23,6 +23,9 @@ class Database
     /** Custom WHMCS email template the cron sends when a plain VPS is ready. */
     public const EMAIL_TEMPLATE = 'OVH VPS Access Ready';
 
+    /** Custom WHMCS email template the cron sends when an n8n server is ready. */
+    public const EMAIL_TEMPLATE_N8N = 'OVH n8n Access Ready';
+
     /**
      * Create any missing tables. Idempotent; safe to call on every request.
      */
@@ -238,35 +241,68 @@ class Database
         if (!Capsule::schema()->hasTable('tblemailtemplates')) {
             return;
         }
-        if (Capsule::table('tblemailtemplates')->where('name', self::EMAIL_TEMPLATE)->exists()) {
+
+        self::ensureOneTemplate(
+            self::EMAIL_TEMPLATE,
+            'Your VPS is ready',
+            '<p>Hello {$client_name},</p>'
+                . '<p>Your VPS <strong>{$service_domain}</strong> is ready.</p>'
+                . '<ul>'
+                . '<li>IP: {$service_dedicated_ip}</li>'
+                . '<li>Username: {$service_username}</li>'
+                . '<li>Password: {$service_password}</li>'
+                . '</ul>'
+                . '<p>Open the Console tab in your client area and log in, or connect over SSH: '
+                . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>',
+            'O seu VPS está pronto',
+            '<p>Olá {$client_name},</p>'
+                . '<p>O seu VPS <strong>{$service_domain}</strong> está pronto.</p>'
+                . '<ul>'
+                . '<li>IP: {$service_dedicated_ip}</li>'
+                . '<li>Utilizador: {$service_username}</li>'
+                . '<li>Palavra-passe: {$service_password}</li>'
+                . '</ul>'
+                . '<p>Abra o separador Consola na sua área de cliente e inicie sessão, ou ligue por SSH: '
+                . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>'
+        );
+
+        self::ensureOneTemplate(
+            self::EMAIL_TEMPLATE_N8N,
+            'Your n8n server is ready',
+            '<p>Hello {$client_name},</p>'
+                . '<p>Your n8n server is ready.</p>'
+                . '<ul>'
+                . '<li>n8n URL: <a href="http://{$service_dedicated_ip}:5678">http://{$service_dedicated_ip}:5678</a></li>'
+                . '<li>Server IP: {$service_dedicated_ip}</li>'
+                . '</ul>'
+                . '<p>Open the URL in your browser and create your owner account on the first visit. '
+                . 'If you enabled HTTPS or a reverse proxy on the image, use that address instead.</p>',
+            'O seu servidor n8n está pronto',
+            '<p>Olá {$client_name},</p>'
+                . '<p>O seu servidor n8n está pronto.</p>'
+                . '<ul>'
+                . '<li>URL do n8n: <a href="http://{$service_dedicated_ip}:5678">http://{$service_dedicated_ip}:5678</a></li>'
+                . '<li>IP do servidor: {$service_dedicated_ip}</li>'
+                . '</ul>'
+                . '<p>Abra o URL no browser e crie a sua conta de proprietário na primeira visita. '
+                . 'Se ativou HTTPS ou um reverse proxy na imagem, use esse endereço.</p>'
+        );
+    }
+
+    /**
+     * Insert one product email template (English base + Portuguese variant) when
+     * it does not exist yet. Idempotent.
+     */
+    private static function ensureOneTemplate(string $name, string $subjectEn, string $messageEn, string $subjectPt, string $messagePt): void
+    {
+        if (Capsule::table('tblemailtemplates')->where('name', $name)->exists()) {
             return;
         }
-
-        $en = '<p>Hello {$client_name},</p>'
-            . '<p>Your VPS <strong>{$service_domain}</strong> is ready.</p>'
-            . '<ul>'
-            . '<li>IP: {$service_dedicated_ip}</li>'
-            . '<li>Username: {$service_username}</li>'
-            . '<li>Password: {$service_password}</li>'
-            . '</ul>'
-            . '<p>Open the Console tab in your client area and log in, or connect over SSH: '
-            . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>';
-
-        $pt = '<p>Olá {$client_name},</p>'
-            . '<p>O seu VPS <strong>{$service_domain}</strong> está pronto.</p>'
-            . '<ul>'
-            . '<li>IP: {$service_dedicated_ip}</li>'
-            . '<li>Utilizador: {$service_username}</li>'
-            . '<li>Palavra-passe: {$service_password}</li>'
-            . '</ul>'
-            . '<p>Abra o separador Consola na sua área de cliente e inicie sessão, ou ligue por SSH: '
-            . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>';
-
         $base = [
-            'name' => self::EMAIL_TEMPLATE,
+            'name' => $name,
             'type' => 'product',
-            'subject' => 'Your VPS is ready',
-            'message' => $en,
+            'subject' => $subjectEn,
+            'message' => $messageEn,
             'fromname' => '',
             'fromemail' => '',
             'disabled' => 0,
@@ -277,8 +313,8 @@ class Database
         ];
         Capsule::table('tblemailtemplates')->insert($base);
         Capsule::table('tblemailtemplates')->insert(array_merge($base, [
-            'subject' => 'O seu VPS está pronto',
-            'message' => $pt,
+            'subject' => $subjectPt,
+            'message' => $messagePt,
             'language' => 'portuguese',
         ]));
     }

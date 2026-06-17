@@ -156,17 +156,22 @@ class Cron
             return;
         }
         $os = (string) ($row['os'] ?? '');
+        $client = OvhClient::fromParams($params);
 
-        // n8n is web-only: no root bootstrap. The customer gets the n8n URL from
-        // the overview (n8n tab). A dedicated n8n "ready" email is a follow-up;
-        // we do not send the VPS credential email here (it has no password).
+        // n8n is web-only: no root bootstrap. Once OVH assigns the IP, mark it web
+        // and email the customer the n8n URL (create the owner account on first
+        // visit). Stays pending until the IP exists.
         if (stripos($os, 'n8n') !== false) {
-            Database::upsertServer($serviceId, ['access_state' => 'web']);
+            $ip = self::mainIp($client, $serviceName);
+            if ($ip === '') {
+                return; // IP not assigned yet; retry on the next cron tick.
+            }
+            Database::upsertServer($serviceId, ['ip_main' => $ip, 'access_state' => 'web']);
+            self::notifyN8n($serviceId, $ip);
             return;
         }
 
         $state = (string) ($row['access_state'] ?? '');
-        $client = OvhClient::fromParams($params);
 
         // Step A: install our key with one destructive rebuild, exactly once.
         if ($state === 'none') {
@@ -261,5 +266,22 @@ class Cron
             localAPI('SendEmail', ['messagename' => Database::EMAIL_TEMPLATE, 'id' => $serviceId]);
         }
         Helper::log('cron:notify', ['service_id' => $serviceId], ['emailed' => true], true, $serviceId);
+    }
+
+    /**
+     * Write the IP into the WHMCS service and send the n8n access email (URL +
+     * create-account note). n8n is web-only, so there is no password.
+     */
+    private static function notifyN8n(int $serviceId, string $ip): void
+    {
+        try {
+            Capsule::table('tblhosting')->where('id', $serviceId)->update(['dedicatedip' => $ip]);
+        } catch (\Throwable $e) {
+            Helper::log('cron:notify', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
+        }
+        if (function_exists('localAPI')) {
+            localAPI('SendEmail', ['messagename' => Database::EMAIL_TEMPLATE_N8N, 'id' => $serviceId]);
+        }
+        Helper::log('cron:notify', ['service_id' => $serviceId], ['n8n' => true], true, $serviceId);
     }
 }
