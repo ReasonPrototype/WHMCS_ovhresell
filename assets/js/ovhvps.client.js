@@ -58,10 +58,15 @@
     // Render a flat object as a two-column table; nested values are stringified.
     function kvTable(obj) {
         if (!obj || typeof obj !== "object") { return $("<p>").text("Not configured."); }
+        // Hide OVH-internal identifiers so the customer never sees the .ovh.net name.
+        var hiddenKeys = { serviceResourceName: 1, serviceName: 1 };
         var $t = $('<table class="table table-striped"></table>');
         $.each(obj, function (k, v) {
+            if (hiddenKeys[k]) { return; }
             if (v !== null && typeof v === "object") { v = JSON.stringify(v); }
-            $t.append($("<tr>").append($("<th>").text(k), $("<td>").text(String(v))));
+            v = String(v);
+            if (v.indexOf(".ovh.net") !== -1) { return; }
+            $t.append($("<tr>").append($("<th>").text(k), $("<td>").text(v)));
         });
         return $t;
     }
