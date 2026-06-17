@@ -53,11 +53,17 @@
         if (tab === "storage") { loadDisks(); }
         if (tab === "network") { loadNetwork(); }
         if (tab === "upgrade") { loadUpgrade(); }
-        if (tab === "graphs") { loadGraphs(); }
     });
 
-    function asJson(data) {
-        return $("<pre>").css({ "max-height": "320px", "overflow": "auto" }).text(JSON.stringify(data, null, 2));
+    // Render a flat object as a two-column table; nested values are stringified.
+    function kvTable(obj) {
+        if (!obj || typeof obj !== "object") { return $("<p>").text("Not configured."); }
+        var $t = $('<table class="table table-striped"></table>');
+        $.each(obj, function (k, v) {
+            if (v !== null && typeof v === "object") { v = JSON.stringify(v); }
+            $t.append($("<tr>").append($("<th>").text(k), $("<td>").text(String(v))));
+        });
+        return $t;
     }
 
     function loadInto(selector, action, render) {
@@ -137,9 +143,18 @@
 
     // --- backups / veeam / ftp ---
     function loadBackups() {
-        loadInto("#ovhvps_backup_panel", "backup_status", asJson);
-        loadInto("#ovhvps_veeam_panel", "veeam_status", asJson);
-        loadInto("#ovhvps_ftp_panel", "ftp_status", asJson);
+        loadInto("#ovhvps_backup_panel", "backup_status", function (d) {
+            var $w = $("<div>");
+            $w.append($("<p>").text("Automated backup: " + ((d && d.backup) ? "enabled" : "not enabled")));
+            if (d && d.backup) { $w.append(kvTable(d.backup)); }
+            return $w;
+        });
+        loadInto("#ovhvps_veeam_panel", "veeam_status", function (d) {
+            return (d && d.veeam) ? kvTable(d.veeam) : $("<p>").text("Veeam not enabled.");
+        });
+        loadInto("#ovhvps_ftp_panel", "ftp_status", function (d) {
+            return d ? kvTable(d) : $("<p>").text("Backup FTP not enabled.");
+        });
     }
 
     // --- storage / disks ---
@@ -180,7 +195,18 @@
             });
             return $t;
         });
-        loadInto("#ovhvps_dns_panel", "dns_list", asJson);
+        loadInto("#ovhvps_dns_panel", "dns_list", function (list) {
+            if (!list || !list.length) { return $("<p>").text("No secondary DNS domains."); }
+            var $t = $('<table class="table"><thead><tr><th>Domain</th><th></th></tr></thead><tbody></tbody></table>');
+            $.each(list, function (i, dom) {
+                var name = (dom && dom.domain) ? dom.domain : String(dom);
+                var $btn = $('<button class="btn btn-sm btn-danger">Remove</button>').on("click", function () {
+                    run("dns_remove", { domain: name }).done(loadNetwork);
+                });
+                $t.find("tbody").append($("<tr>").append($("<td>").text(name), $("<td>").append($btn)));
+            });
+            return $t;
+        });
     }
 
     $(document).on("submit", "#ovhvps_dns_add", function (e) {
@@ -192,12 +218,17 @@
 
     // --- upgrade ---
     function loadUpgrade() {
-        loadInto("#ovhvps_upgrade_panel", "upgrade_list", asJson);
-    }
-
-    // --- graphs ---
-    function loadGraphs() {
-        loadInto("#ovhvps_graphs_panel", "graphs", asJson);
+        loadInto("#ovhvps_upgrade_panel", "upgrade_list", function (d) {
+            var ups = (d && d.upgrades) || [];
+            if (!ups.length) { return $("<p>").text("No upgrades available for this VPS."); }
+            var $t = $('<table class="table table-striped"><thead><tr><th>Plan</th><th>Details</th></tr></thead><tbody></tbody></table>');
+            $.each(ups, function (i, u) {
+                var plan = u.planCode || u.plan || u.name || (typeof u === "string" ? u : JSON.stringify(u));
+                var desc = u.description || u.invoiceName || "";
+                $t.find("tbody").append($("<tr>").append($("<td>").text(plan), $("<td>").text(desc)));
+            });
+            return $t;
+        });
     }
 
     // --- n8n access info (shown when the installed OS is an n8n image) ---

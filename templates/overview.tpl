@@ -40,7 +40,6 @@
     <li><a href="#" data-tab="storage">{$lang.storage|default:'Storage'}</a></li>
     <li><a href="#" data-tab="network">{$lang.network|default:'Network'}</a></li>
     <li><a href="#" data-tab="upgrade">{$lang.upgrade|default:'Upgrade'}</a></li>
-    <li><a href="#" data-tab="graphs">{$lang.graphs|default:'Graphs'}</a></li>
     {if $isN8n}<li><a href="#" data-tab="n8n">{$lang.n8n|default:'n8n'}</a></li>{/if}
 </ul>
 
@@ -132,11 +131,6 @@
 <div class="ovhvps-tab-pane" data-pane="upgrade">
     <p>Plans you can upgrade this VPS to. Upgrades change billing and are applied by your provider.</p>
     <div id="ovhvps_upgrade_panel">Loading…</div>
-</div>
-
-<div class="ovhvps-tab-pane" data-pane="graphs">
-    <p>Resource usage (best effort; OVH usage endpoints are being deprecated).</p>
-    <div id="ovhvps_graphs_panel">Loading…</div>
 </div>
 
 {if $isN8n}
