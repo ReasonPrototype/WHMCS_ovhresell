@@ -3,6 +3,8 @@
 namespace OvhVps;
 
 use phpseclib3\Crypt\EC;
+use phpseclib3\Crypt\PublicKeyLoader;
+use phpseclib3\Net\SSH2;
 
 /**
  * Automated first-boot access provisioning for plain VPS.
@@ -65,5 +67,66 @@ class AccessBootstrap
             'publicSshKey' => $publicKey,
             'doNotSendPassword' => true,
         ]);
+    }
+
+    /**
+     * Strong random password, drawn from an unambiguous alphabet (no 0/O/1/l/I)
+     * so it is safe to read off the console and type. Uses random_int (CSPRNG).
+     */
+    public static function generatePassword(int $len = 20): string
+    {
+        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        $max = strlen($alphabet) - 1;
+        $out = '';
+        for ($i = 0; $i < $len; $i++) {
+            $out .= $alphabet[random_int(0, $max)];
+        }
+        return $out;
+    }
+
+    /**
+     * SSH in as $user with the private key and set both that user's and root's
+     * password (the default user has passwordless sudo on OVH cloud images), so
+     * the customer can log in through the browser console with no SSH tooling.
+     * Returns true on success. Bounded attempts so a not-yet-booted VPS does not
+     * hang the cron; the cron re-runs on its next tick if this returns false.
+     *
+     * LIVE-VERIFY: assumes the default user has passwordless sudo and the image
+     * does not enforce `requiretty`. If sudo needs a TTY, enable a PTY before
+     * exec or switch to `sudo -n`.
+     */
+    public static function setPassword(string $ip, string $user, string $privateKey, string $password, int $attempts = 3, int $sleepSeconds = 10): bool
+    {
+        if ($ip === '' || $user === '' || $privateKey === '') {
+            return false;
+        }
+        $key = PublicKeyLoader::load($privateKey);
+        for ($i = 0; $i < $attempts; $i++) {
+            try {
+                $ssh = new SSH2($ip, 22, 20);
+                if ($ssh->login($user, $key)) {
+                    // Single-quote the "user:pass" payload; escape any quote in
+                    // the password the POSIX way ('\'' closes, escapes, reopens).
+                    // Chain with && so the sentinel prints only if BOTH chpasswd
+                    // calls succeed: never report success on a password we did
+                    // not actually set (which would email a broken login).
+                    $escaped = str_replace("'", "'\\''", $password);
+                    $cmd = "printf '%s\\n' '" . $user . ':' . $escaped . "' | sudo chpasswd"
+                        . " && printf '%s\\n' 'root:" . $escaped . "' | sudo chpasswd"
+                        . " && echo OVHVPS_PW_OK";
+                    $out = (string) $ssh->exec($cmd);
+                    $ssh->disconnect();
+                    if (strpos($out, 'OVHVPS_PW_OK') !== false) {
+                        return true;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // VPS may still be installing/booting; retry on the next pass.
+            }
+            if ($i < $attempts - 1) {
+                sleep($sleepSeconds);
+            }
+        }
+        return false;
     }
 }
