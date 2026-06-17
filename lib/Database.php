@@ -20,6 +20,9 @@ class Database
     public const AVAILABILITY = 'mod_ovhvps_availability';
     public const META = 'mod_ovhvps_meta';
 
+    /** Custom WHMCS email template the cron sends when a plain VPS is ready. */
+    public const EMAIL_TEMPLATE = 'OVH VPS Access Ready';
+
     /**
      * Create any missing tables. Idempotent; safe to call on every request.
      */
@@ -219,6 +222,65 @@ class Database
                 }
             });
         }
+    }
+
+    /**
+     * Create the access-ready email template once (idempotent): an English base
+     * plus a Portuguese variant. The cron sends it when a plain VPS is ready.
+     *
+     * LIVE-VERIFY: confirm the tblemailtemplates columns and multi-language
+     * behaviour on the target WHMCS version. If the 'portuguese' row is not
+     * picked up, add the translation in Setup -> Email Templates (the base
+     * English template always works).
+     */
+    public static function ensureEmailTemplate(): void
+    {
+        if (!Capsule::schema()->hasTable('tblemailtemplates')) {
+            return;
+        }
+        if (Capsule::table('tblemailtemplates')->where('name', self::EMAIL_TEMPLATE)->exists()) {
+            return;
+        }
+
+        $en = '<p>Hello {$client_name},</p>'
+            . '<p>Your VPS <strong>{$service_domain}</strong> is ready.</p>'
+            . '<ul>'
+            . '<li>IP: {$service_dedicated_ip}</li>'
+            . '<li>Username: {$service_username}</li>'
+            . '<li>Password: {$service_password}</li>'
+            . '</ul>'
+            . '<p>Open the Console tab in your client area and log in, or connect over SSH: '
+            . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>';
+
+        $pt = '<p>Olá {$client_name},</p>'
+            . '<p>O seu VPS <strong>{$service_domain}</strong> está pronto.</p>'
+            . '<ul>'
+            . '<li>IP: {$service_dedicated_ip}</li>'
+            . '<li>Utilizador: {$service_username}</li>'
+            . '<li>Palavra-passe: {$service_password}</li>'
+            . '</ul>'
+            . '<p>Abra o separador Consola na sua área de cliente e inicie sessão, ou ligue por SSH: '
+            . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>';
+
+        $base = [
+            'name' => self::EMAIL_TEMPLATE,
+            'type' => 'product',
+            'subject' => 'Your VPS is ready',
+            'message' => $en,
+            'fromname' => '',
+            'fromemail' => '',
+            'disabled' => 0,
+            'custom' => 1,
+            'language' => '',
+            'copyto' => '',
+            'plaintext' => 0,
+        ];
+        Capsule::table('tblemailtemplates')->insert($base);
+        Capsule::table('tblemailtemplates')->insert(array_merge($base, [
+            'subject' => 'O seu VPS está pronto',
+            'message' => $pt,
+            'language' => 'portuguese',
+        ]));
     }
 
     public static function getMeta(string $key, ?string $default = null): ?string

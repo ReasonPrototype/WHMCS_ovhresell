@@ -119,6 +119,7 @@ class Helper
 
         try {
             Database::ensureSchema();
+            Database::ensureEmailTemplate();
         } catch (\Throwable $e) {
             self::log('schema', null, ['error' => $e->getMessage()], false);
         }
