@@ -52,10 +52,11 @@
     </div>
     <table class="table table-striped ovhvps-info">
         <tbody>
-            <tr><th>{$lang.display_name|default:'Display Name'}</th><td>{$ovh.displayName}</td></tr>
+            <tr><th>{$lang.hostname|default:'Hostname'}</th><td>{$hostname}</td></tr>
             <tr><th>{$lang.status|default:'Status'}</th><td id="ovhvps_state">{$ovh.state}</td></tr>
-            <tr><th>{$lang.name|default:'Name'}</th><td>{$ovh.name}</td></tr>
+            <tr><th>{$lang.operating_system|default:'Operating System'}</th><td>{$os}</td></tr>
             <tr><th>{$lang.ip|default:'IP'}</th><td>{$ovh.ip}</td></tr>
+            {if $ovh.ipv6}<tr><th>{$lang.ipv6|default:'IPv6'}</th><td>{$ovh.ipv6}</td></tr>{/if}
             <tr><th>{$lang.datacenter|default:'Datacenter'}</th><td>{$ovh.zone}</td></tr>
             <tr><th>{$lang.vcore|default:'vCore'}</th><td>{$ovh.vcore}</td></tr>
             <tr><th>{$lang.memory|default:'Memory (GB)'}</th><td>{$ovh.memoryLimit}</td></tr>

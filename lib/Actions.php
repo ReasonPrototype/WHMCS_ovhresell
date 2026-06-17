@@ -152,7 +152,19 @@ class Actions
         $vps = (array) $client->get('/vps/' . $serviceName);
         $model = $vps['model'] ?? [];
         $ips = $client->get('/vps/' . $serviceName . '/ips');
-        $mainIp = is_array($ips) && $ips ? (string) $ips[0] : '';
+        // /ips is a flat list of IP strings; split the first v4 and v6 out.
+        $ipv4 = '';
+        $ipv6 = '';
+        if (is_array($ips)) {
+            foreach ($ips as $ip) {
+                $ip = (string) $ip;
+                if ($ipv6 === '' && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                    $ipv6 = $ip;
+                } elseif ($ipv4 === '' && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    $ipv4 = $ip;
+                }
+            }
+        }
 
         return [
             'name' => $vps['name'] ?? $serviceName,
@@ -162,7 +174,8 @@ class Actions
             'memoryLimit' => isset($model['memory']) ? round(((int) $model['memory']) / 1024) : ($model['ram'] ?? ''),
             'disk' => $model['disk'] ?? '',
             'vcore' => $model['vcore'] ?? ($model['maximumVcoreCount'] ?? ''),
-            'ip' => $mainIp,
+            'ip' => $ipv4,
+            'ipv6' => $ipv6,
             'netbootMode' => $vps['netbootMode'] ?? '',
         ];
     }

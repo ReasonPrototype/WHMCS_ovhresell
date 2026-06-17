@@ -204,6 +204,8 @@ function ovhvps_ClientArea(array $params): array
                 'ovh' => $info,
                 'serviceid' => $serviceId,
                 'isN8n' => $isN8n,
+                'hostname' => (string) ($params['domain'] ?? ''),
+                'os' => $os,
                 'csrf' => $_SESSION['ovhvps_csrf'],
                 'lang' => $lang,
                 'error' => $error,
