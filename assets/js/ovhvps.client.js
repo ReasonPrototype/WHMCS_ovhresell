@@ -234,21 +234,20 @@
     // --- n8n access info (shown when the installed OS is an n8n image) ---
     function loadN8n() {
         call("n8n_status").done(function (res) {
-            if (res && res.status === "OK" && res.data) {
+            if (res && res.status === "OK" && res.data && res.data.url) {
                 var d = res.data;
-                var link = d.url
-                    ? '<a href="' + d.url + '" target="_blank" rel="noopener">' + d.url + "</a>"
-                    : "(provisioning)";
                 $("#ovhvps_n8n_panel").html(
+                    "<p>Open n8n in your browser and create your owner account on the first visit.</p>" +
+                    '<p><a class="btn btn-primary" href="' + d.url + '" target="_blank" rel="noopener">Open n8n</a></p>' +
                     "<table class='table'>" +
+                    "<tr><td><b>n8n URL</b></td><td><a href='" + d.url + "' target='_blank' rel='noopener'>" + d.url + "</a></td></tr>" +
                     "<tr><td><b>Server IP</b></td><td>" + (d.ip || "") + "</td></tr>" +
-                    "<tr><td><b>n8n editor</b></td><td>" + link + "</td></tr>" +
                     "<tr><td><b>State</b></td><td>" + (d.state || "unknown") + "</td></tr>" +
                     "</table>" +
-                    "<p class='text-muted'>Default n8n port is 5678. If you enabled HTTPS/a reverse proxy on the image, use that address instead.</p>"
+                    "<p class='text-muted'>Default n8n port is 5678. If you enabled HTTPS or a reverse proxy on the image, use that address instead.</p>"
                 );
             } else {
-                $("#ovhvps_n8n_panel").text((res && res.message) || "n8n info unavailable.");
+                $("#ovhvps_n8n_panel").text((res && res.message) || "n8n is still being provisioned. Please check back shortly.");
             }
         });
     }
