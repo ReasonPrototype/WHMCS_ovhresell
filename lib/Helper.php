@@ -193,6 +193,31 @@ class Helper
     }
 
     /**
+     * Encrypt a secret with WHMCS' configured encryption (cc_encryption_hash),
+     * so VPS credentials are never stored in plaintext. Returns '' on failure.
+     */
+    public static function encrypt(string $plain): string
+    {
+        if ($plain === '' || !function_exists('localAPI')) {
+            return '';
+        }
+        $r = localAPI('EncryptPassword', ['password2' => $plain]);
+        return (string) ($r['password'] ?? '');
+    }
+
+    /**
+     * Decrypt a secret produced by {@see encrypt()}. Returns '' on failure.
+     */
+    public static function decrypt(string $cipher): string
+    {
+        if ($cipher === '' || !function_exists('localAPI')) {
+            return '';
+        }
+        $r = localAPI('DecryptPassword', ['password2' => $cipher]);
+        return (string) ($r['password'] ?? '');
+    }
+
+    /**
      * Load the client-area language strings for a given WHMCS language,
      * falling back to English.
      *

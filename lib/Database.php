@@ -195,6 +195,30 @@ class Database
                 $t->boolean('is_default')->default(false);
             });
         }
+
+        // Phase B access bootstrap: per-VPS key + console password (encrypted)
+        // and the bootstrap state-machine flag. All nullable/additive.
+        $accessCols = [
+            'ssh_pubkey' => 'text',
+            'ssh_privkey_enc' => 'longtext',
+            'root_user' => 'string',
+            'root_pass_enc' => 'text',
+            'access_state' => 'string',
+        ];
+        foreach ($accessCols as $accCol => $accType) {
+            if (!$schema->hasTable(self::SERVERS) || $schema->hasColumn(self::SERVERS, $accCol)) {
+                continue;
+            }
+            $schema->table(self::SERVERS, static function ($t) use ($accCol, $accType): void {
+                if ($accType === 'string') {
+                    $t->string($accCol)->nullable();
+                } elseif ($accType === 'text') {
+                    $t->text($accCol)->nullable();
+                } else {
+                    $t->longText($accCol)->nullable();
+                }
+            });
+        }
     }
 
     public static function getMeta(string $key, ?string $default = null): ?string
