@@ -200,6 +200,10 @@ class Provisioning
                 'os' => self::pickValue($config, 'vps_os'),
                 'options_json' => json_encode($options),
                 'state' => $serviceName ? 'delivered' : 'provisioning',
+                // Marks this as a NEW service eligible for the access bootstrap.
+                // Existing pre-Phase-B services keep a NULL access_state and are
+                // deliberately never auto-bootstrapped (that would wipe a live VPS).
+                'access_state' => 'none',
             ]);
 
             if ($serviceName === null) {

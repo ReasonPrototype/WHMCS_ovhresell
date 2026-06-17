@@ -79,6 +79,28 @@ class Cron
             }
         }
 
+        // Access bootstrap pass: drive freshly delivered plain VPS through key
+        // install -> console password so the customer can log in. Only services
+        // explicitly marked at provisioning ('none'/'key_installed') are touched;
+        // pre-Phase-B services (NULL access_state) are never auto-bootstrapped, so
+        // an in-use VPS is never rebuilt. n8n short-circuits to the 'web' state.
+        $pendingAccess = Capsule::table(Database::SERVERS)
+            ->whereNotNull('service_name')
+            ->whereIn('access_state', ['none', 'key_installed'])
+            ->get();
+        foreach ($pendingAccess as $row) {
+            $serviceId = (int) $row->service_id;
+            $params = Helper::paramsForService($serviceId);
+            if ($params === null) {
+                continue;
+            }
+            try {
+                self::bootstrapAccess($serviceId, $params, (array) $row);
+            } catch (\Throwable $e) {
+                Helper::log('cron:access', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
+            }
+        }
+
         // Refresh OVH stock -> WHMCS product availability (throttled to hourly).
         try {
             Availability::refreshIfDue();
@@ -117,5 +139,127 @@ class Cron
             }
         }
         return count($candidates) === 1 ? $candidates[0] : null;
+    }
+
+    /**
+     * Drive one service through the access bootstrap state machine:
+     * none -> key_installed -> ready (n8n short-circuits to 'web'). Every step is
+     * guarded so a re-run never re-installs a VPS already in use.
+     *
+     * @param array<string,mixed> $params
+     * @param array<string,mixed> $row    mod_ovhvps_servers row (cast to array)
+     */
+    private static function bootstrapAccess(int $serviceId, array $params, array $row): void
+    {
+        $serviceName = (string) ($row['service_name'] ?? '');
+        if ($serviceName === '') {
+            return;
+        }
+        $os = (string) ($row['os'] ?? '');
+
+        // n8n is web-only: no root bootstrap. The customer gets the n8n URL from
+        // the overview (n8n tab). A dedicated n8n "ready" email is a follow-up;
+        // we do not send the VPS credential email here (it has no password).
+        if (stripos($os, 'n8n') !== false) {
+            Database::upsertServer($serviceId, ['access_state' => 'web']);
+            return;
+        }
+
+        $state = (string) ($row['access_state'] ?? '');
+        $client = OvhClient::fromParams($params);
+
+        // Step A: install our key with one destructive rebuild, exactly once.
+        if ($state === 'none') {
+            $pair = AccessBootstrap::generateKeyPair();
+            $imageId = self::imageIdForOs($client, $serviceName, $os);
+            AccessBootstrap::installKey($client, $serviceName, $imageId, $pair['public']);
+            Database::upsertServer($serviceId, [
+                'ssh_pubkey' => $pair['public'],
+                'ssh_privkey_enc' => Helper::encrypt($pair['private']),
+                'access_state' => 'key_installed',
+            ]);
+            Helper::log('cron:access', ['service_id' => $serviceId], 'key installed; awaiting reinstall', true, $serviceId);
+            return; // the SSH step runs on a later tick once the VPS is up
+        }
+
+        // Step B: set the console password over SSH, then mark ready + notify.
+        if ($state === 'key_installed') {
+            $ip = self::mainIp($client, $serviceName);
+            $user = AccessBootstrap::defaultUser($os);
+            $priv = Helper::decrypt((string) ($row['ssh_privkey_enc'] ?? ''));
+            $pass = AccessBootstrap::generatePassword();
+            if ($ip !== '' && $priv !== '' && AccessBootstrap::setPassword($ip, $user, $priv, $pass)) {
+                Database::upsertServer($serviceId, [
+                    'root_user' => $user,
+                    'root_pass_enc' => Helper::encrypt($pass),
+                    'ip_main' => $ip,
+                    'access_state' => 'ready',
+                ]);
+                self::notifyReady($serviceId);
+                Helper::log('cron:access', ['service_id' => $serviceId], ['ready' => true, 'user' => $user], true, $serviceId);
+            }
+            // else: stay key_installed; the next tick retries (VPS still booting).
+        }
+    }
+
+    /**
+     * Match the ordered OS name to an available image id for the rebuild. Throws
+     * when none matches so the caller logs and retries on the next tick.
+     */
+    private static function imageIdForOs(OvhClient $client, string $serviceName, string $os): string
+    {
+        $os = trim($os);
+        $ids = $client->get('/vps/' . $serviceName . '/images/available');
+        if (is_array($ids) && $os !== '') {
+            foreach ($ids as $id) {
+                $detail = $client->get('/vps/' . $serviceName . '/images/available/' . rawurlencode((string) $id));
+                $name = is_array($detail) ? (string) ($detail['name'] ?? '') : '';
+                if ($name !== '' && stripos($name, $os) !== false) {
+                    return (string) ($detail['id'] ?? $id);
+                }
+            }
+        }
+        throw new \RuntimeException('No matching OVH image id for OS "' . $os . '"');
+    }
+
+    /** First IPv4 of the VPS, or '' if none is assigned yet. */
+    private static function mainIp(OvhClient $client, string $serviceName): string
+    {
+        $ips = $client->get('/vps/' . $serviceName . '/ips');
+        if (is_array($ips)) {
+            foreach ($ips as $ip) {
+                if (filter_var((string) $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                    return (string) $ip;
+                }
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Mirror the resolved credentials into the WHMCS service so the email merge
+     * fields resolve, then send the access email once.
+     *
+     * LIVE-VERIFY: tblhosting.password expects a WHMCS-encrypted value, which is
+     * what root_pass_enc holds (Helper::encrypt == localAPI EncryptPassword). If a
+     * WHMCS version differs, switch to localAPI('UpdateClientProduct', ...).
+     */
+    private static function notifyReady(int $serviceId): void
+    {
+        $server = Database::getServer($serviceId) ?: [];
+        try {
+            Capsule::table('tblhosting')->where('id', $serviceId)->update([
+                'username' => (string) ($server['root_user'] ?? ''),
+                'password' => (string) ($server['root_pass_enc'] ?? ''),
+                'dedicatedip' => (string) ($server['ip_main'] ?? ''),
+            ]);
+        } catch (\Throwable $e) {
+            Helper::log('cron:notify', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
+        }
+
+        if (function_exists('localAPI')) {
+            localAPI('SendEmail', ['messagename' => Database::EMAIL_TEMPLATE, 'id' => $serviceId]);
+        }
+        Helper::log('cron:notify', ['service_id' => $serviceId], ['emailed' => true], true, $serviceId);
     }
 }
