@@ -3,9 +3,11 @@
 require __DIR__ . '/assert.php';
 require __DIR__ . '/../lib/Helper.php';
 require __DIR__ . '/../lib/AccessBootstrap.php';
+require __DIR__ . '/../lib/ConfigOptions.php';
 
 use OvhVps\Helper;
 use OvhVps\AccessBootstrap;
+use OvhVps\ConfigOptions;
 
 // --- looksLikeOvhVpsName ---
 // True only for OVH-assigned VPS serviceNames, never for a WHMCS hostname.
@@ -21,5 +23,12 @@ check('debian user', AccessBootstrap::defaultUser('Debian 12'), 'debian');
 check('ubuntu user', AccessBootstrap::defaultUser('Ubuntu 24.04'), 'ubuntu');
 check('n8n image keeps debian', AccessBootstrap::defaultUser('Debian 12 - n8n'), 'debian');
 check('unknown defaults to debian', AccessBootstrap::defaultUser('SomeOS 1.0'), 'debian');
+
+// --- ConfigOptions::paidImageFamily / normalizeOsName ---
+check('windows family', ConfigOptions::paidImageFamily('Windows Server 2025'), 'windows');
+check('cpanel family', ConfigOptions::paidImageFamily('Debian 12 - cPanel'), 'cpanel');
+check('plesk family', ConfigOptions::paidImageFamily('Plesk on Debian 12'), 'plesk');
+check('free linux family', ConfigOptions::paidImageFamily('Debian 12'), '');
+check('normalize os', ConfigOptions::normalizeOsName('  Debian   12 '), 'debian 12');
 
 done();

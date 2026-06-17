@@ -49,9 +49,9 @@ class Actions
                 case 'console':
                     return self::ok('', ['url' => self::consoleUrl($client, $serviceName)]);
                 case 'images':
-                    return self::ok('', self::images($client, $serviceName));
+                    return self::ok('', self::images($client, $serviceName, $params));
                 case 'reinstall':
-                    return self::reinstall($client, $serviceName, $input);
+                    return self::reinstall($client, $serviceName, $params, $input);
                 case 'snapshot_list':
                     return self::ok('', self::snapshotInfo($client, $serviceName));
                 case 'snapshot_create':
@@ -195,36 +195,90 @@ class Actions
     /**
      * @return array{available: list<array{id:string,name:string}>, current: mixed}
      */
-    private static function images(OvhClient $client, string $serviceName): array
+    private static function images(OvhClient $client, string $serviceName, array $params): array
     {
-        // /images/available returns bare image ids; expand each to {id,name} so
-        // the dropdown shows OS names, not UUIDs. Cached 24h (the list is stable)
-        // to avoid the N+1 detail calls on every Reinstall tab open.
-        $cacheKey = 'images:' . $serviceName;
-        $available = Database::getCache($cacheKey, 86400);
-        if (!is_array($available)) {
-            $ids = $client->get('/vps/' . $serviceName . '/images/available');
-            $available = [];
-            if (is_array($ids)) {
-                foreach ($ids as $id) {
-                    $detail = self::safeGet($client, '/vps/' . $serviceName . '/images/available/' . rawurlencode((string) $id));
-                    if (is_array($detail)) {
-                        $available[] = [
-                            'id' => (string) ($detail['id'] ?? $id),
-                            'name' => (string) ($detail['name'] ?? $detail['distribution'] ?? $id),
-                        ];
-                    } else {
-                        $available[] = ['id' => (string) $id, 'name' => (string) $id];
-                    }
-                }
-            }
-            Database::setCache($cacheKey, $available);
-        }
-
         return [
-            'available' => $available,
+            'available' => self::allowedImages($client, $serviceName, $params),
             'current' => self::safeGet($client, '/vps/' . $serviceName . '/images/current'),
         ];
+    }
+
+    /**
+     * Full OVH image catalogue for the VPS, expanded to {id,name}. /images/available
+     * returns bare ids; we expand each so names show instead of UUIDs. Cached 24h
+     * (the list is stable) to avoid N+1 detail calls on every Reinstall tab open.
+     *
+     * @return list<array{id:string,name:string}>
+     */
+    private static function availableImages(OvhClient $client, string $serviceName): array
+    {
+        $cacheKey = 'images:' . $serviceName;
+        $available = Database::getCache($cacheKey, 86400);
+        if (is_array($available)) {
+            return $available;
+        }
+        $ids = $client->get('/vps/' . $serviceName . '/images/available');
+        $available = [];
+        if (is_array($ids)) {
+            foreach ($ids as $id) {
+                $detail = self::safeGet($client, '/vps/' . $serviceName . '/images/available/' . rawurlencode((string) $id));
+                if (is_array($detail)) {
+                    $available[] = [
+                        'id' => (string) ($detail['id'] ?? $id),
+                        'name' => (string) ($detail['name'] ?? $detail['distribution'] ?? $id),
+                    ];
+                } else {
+                    $available[] = ['id' => (string) $id, 'name' => (string) $id];
+                }
+            }
+        }
+        Database::setCache($cacheKey, $available);
+        return $available;
+    }
+
+    /**
+     * The images a customer may reinstall to: the OS options the plan sells
+     * (mod_ovhvps_option_map vps_os values) limited to the customer's paid tier.
+     * A paid family (Windows/cPanel/Plesk) is offered only when the current OS is
+     * already that family, so a customer can never reinstall into a license OVH
+     * would bill us for. Falls back to the cost-tier filter alone when the plan OS
+     * names do not line up with the image names, so reinstall always works but
+     * never leaks a paid image.
+     *
+     * @param array<string, mixed> $params
+     * @return list<array{id:string,name:string}>
+     */
+    private static function allowedImages(OvhClient $client, string $serviceName, array $params): array
+    {
+        $all = self::availableImages($client, $serviceName);
+
+        $serviceId = (int) ($params['serviceid'] ?? 0);
+        $server = $serviceId > 0 ? (Database::getServer($serviceId) ?? []) : [];
+        $currentFamily = ConfigOptions::paidImageFamily((string) ($server['os'] ?? ''));
+
+        // Cost guard (every path): free images always allowed; a paid family only
+        // when the customer already runs (pays for) that same family.
+        $costOk = static function (array $img) use ($currentFamily): bool {
+            $fam = ConfigOptions::paidImageFamily((string) ($img['name'] ?? ''));
+            return $fam === '' || $fam === $currentFamily;
+        };
+
+        // Faithful list: only images whose name the plan offers as an OS option.
+        $sold = [];
+        foreach (Database::osOptionValues((int) ($params['pid'] ?? 0)) as $name) {
+            $sold[ConfigOptions::normalizeOsName((string) $name)] = true;
+        }
+        if ($sold !== []) {
+            $primary = array_values(array_filter($all, static function (array $img) use ($sold, $costOk): bool {
+                return isset($sold[ConfigOptions::normalizeOsName((string) ($img['name'] ?? ''))]) && $costOk($img);
+            }));
+            if ($primary !== []) {
+                return $primary;
+            }
+        }
+
+        // Fallback: cost-tier filter only (still never leaks a paid image).
+        return array_values(array_filter($all, $costOk));
     }
 
     /**
@@ -233,11 +287,21 @@ class Actions
      * @param array<string, mixed> $input
      * @return array{status:string, message:string, data:mixed}
      */
-    private static function reinstall(OvhClient $client, string $serviceName, array $input): array
+    private static function reinstall(OvhClient $client, string $serviceName, array $params, array $input): array
     {
         $imageId = (string) ($input['image_id'] ?? '');
         if ($imageId === '') {
             return self::err('No image selected.');
+        }
+        // Enforce server-side: the image must be in the plan's allowed list, so a
+        // crafted request cannot reinstall to a paid image (Windows/cPanel/Plesk)
+        // the customer is not paying for - that would bill us at OVH.
+        $allowedIds = array_map(
+            static fn (array $img): string => (string) $img['id'],
+            self::allowedImages($client, $serviceName, $params)
+        );
+        if (!in_array($imageId, $allowedIds, true)) {
+            return self::err('That operating system is not available for your plan.');
         }
         $body = ['imageId' => $imageId];
         if (!empty($input['ssh_key'])) {

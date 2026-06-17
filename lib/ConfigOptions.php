@@ -67,6 +67,29 @@ class ConfigOptions
     }
 
     /**
+     * The paid image family of an OS image name: 'windows', 'cpanel', 'plesk',
+     * or '' for a free image. Used to stop a customer reinstalling to a paid
+     * image (a license cost OVH bills us for) they are not already paying for.
+     * Pure: no WHMCS/DB dependency.
+     */
+    public static function paidImageFamily(string $image): string
+    {
+        $image = strtolower($image);
+        foreach (['windows', 'cpanel', 'plesk'] as $family) {
+            if (str_contains($image, $family)) {
+                return $family;
+            }
+        }
+        return '';
+    }
+
+    /** Normalise an OS name for matching (lowercase, collapse whitespace). Pure. */
+    public static function normalizeOsName(string $name): string
+    {
+        return (string) preg_replace('/\s+/', ' ', strtolower(trim($name)));
+    }
+
+    /**
      * The OS license planCode implied by a chosen OS image: a Windows image needs the
      * paid Windows license, anything else maps to the (free) Linux license. Returns
      * null when the required planCode is absent (e.g. a legacy plan with no os family).

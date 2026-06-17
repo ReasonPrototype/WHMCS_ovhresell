@@ -376,6 +376,25 @@ class Database
     }
 
     /**
+     * The OS option values configured for a product (the "Operating System"
+     * config dropdown), used to limit reinstall to what the plan actually sells.
+     *
+     * @return list<mixed>
+     */
+    public static function osOptionValues(int $pid): array
+    {
+        if ($pid <= 0) {
+            return [];
+        }
+        return Capsule::table(self::OPTION_MAP)
+            ->where('pid', $pid)
+            ->where('ovh_kind', 'config')
+            ->where('ovh_label', 'vps_os')
+            ->pluck('whmcs_option_value')
+            ->all();
+    }
+
+    /**
      * Insert or update the service<->VPS mapping row.
      *
      * @param array<string, mixed> $data
