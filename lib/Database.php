@@ -214,6 +214,34 @@ class Database
     }
 
     /**
+     * Lightweight JSON cache on top of the META table. Returns the decoded value
+     * when present and fresher than $ttlSeconds, otherwise null.
+     *
+     * @return mixed|null
+     */
+    public static function getCache(string $key, int $ttlSeconds)
+    {
+        $row = Capsule::table(self::META)->where('mkey', 'cache:' . $key)->first();
+        if (!$row) {
+            return null;
+        }
+        $payload = json_decode((string) $row->mvalue, true);
+        if (!is_array($payload) || !array_key_exists('at', $payload) || !array_key_exists('data', $payload)) {
+            return null;
+        }
+        if ((time() - (int) $payload['at']) > $ttlSeconds) {
+            return null;
+        }
+        return $payload['data'];
+    }
+
+    /** @param mixed $data */
+    public static function setCache(string $key, $data): void
+    {
+        self::setMeta('cache:' . $key, (string) json_encode(['at' => time(), 'data' => $data]));
+    }
+
+    /**
      * @param list<array{datacenter:string, linux:bool, windows:bool}>|list<string> $datacenters matrix rows (or legacy codes)
      * @param mixed $raw
      */

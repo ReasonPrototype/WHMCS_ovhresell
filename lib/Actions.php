@@ -193,13 +193,37 @@ class Actions
     }
 
     /**
-     * @return array{available: array<int,mixed>, current: mixed}
+     * @return array{available: list<array{id:string,name:string}>, current: mixed}
      */
     private static function images(OvhClient $client, string $serviceName): array
     {
+        // /images/available returns bare image ids; expand each to {id,name} so
+        // the dropdown shows OS names, not UUIDs. Cached 24h (the list is stable)
+        // to avoid the N+1 detail calls on every Reinstall tab open.
+        $cacheKey = 'images:' . $serviceName;
+        $available = Database::getCache($cacheKey, 86400);
+        if (!is_array($available)) {
+            $ids = $client->get('/vps/' . $serviceName . '/images/available');
+            $available = [];
+            if (is_array($ids)) {
+                foreach ($ids as $id) {
+                    $detail = self::safeGet($client, '/vps/' . $serviceName . '/images/available/' . rawurlencode((string) $id));
+                    if (is_array($detail)) {
+                        $available[] = [
+                            'id' => (string) ($detail['id'] ?? $id),
+                            'name' => (string) ($detail['name'] ?? $detail['distribution'] ?? $id),
+                        ];
+                    } else {
+                        $available[] = ['id' => (string) $id, 'name' => (string) $id];
+                    }
+                }
+            }
+            Database::setCache($cacheKey, $available);
+        }
+
         return [
-            'available' => (array) $client->get('/vps/' . $serviceName . '/images/available'),
-            'current' => $client->get('/vps/' . $serviceName . '/images/current'),
+            'available' => $available,
+            'current' => self::safeGet($client, '/vps/' . $serviceName . '/images/current'),
         ];
     }
 
