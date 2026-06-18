@@ -7,6 +7,10 @@
     }
     var cfg = window.ovhvps;
 
+    // Translate a server-returned message key via the injected lang map; pass
+    // dynamic strings (e.g. raw OVH errors) through unchanged.
+    function tmsg(m) { return (m && cfg.lang && cfg.lang[m]) || m; }
+
     function setStatus(kind, message) {
         var $s = $("#ovhvps_status");
         $s.removeClass("process success error").addClass(kind).text(message);
@@ -25,13 +29,13 @@
         setStatus("process", cfg.lang.working);
         return call(action, extra).done(function (res) {
             if (!res || res.status === "Error") {
-                setStatus("error", (res && res.message) || cfg.lang.failed);
+                setStatus("error", (res && tmsg(res.message)) || cfg.lang.failed);
                 return;
             }
             if (res.status === "Processing") {
-                setStatus("process", res.message || cfg.lang.in_progress);
+                setStatus("process", tmsg(res.message) || cfg.lang.in_progress);
             } else {
-                setStatus("success", res.message || cfg.lang.done);
+                setStatus("success", tmsg(res.message) || cfg.lang.done);
             }
         }).fail(function () {
             setStatus("error", cfg.lang.network_error);
@@ -74,7 +78,7 @@
         $(selector).text(cfg.lang.loading);
         call(action).done(function (res) {
             if (!res || res.status === "Error") {
-                $(selector).text((res && res.message) || cfg.lang.unavailable);
+                $(selector).text((res && tmsg(res.message)) || cfg.lang.unavailable);
                 return;
             }
             $(selector).empty().append(render(res.data));

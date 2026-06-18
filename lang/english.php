@@ -110,3 +110,31 @@ $_LANG['js_n8n_url'] = 'n8n URL';
 $_LANG['js_n8n_server_ip'] = 'Server IP';
 $_LANG['js_n8n_port_note'] = 'Default n8n port is 5678. If you enabled HTTPS or a reverse proxy on the image, use that address instead.';
 $_LANG['js_n8n_provisioning'] = 'n8n is still being provisioned. Please check back shortly.';
+
+// --- Action result messages (returned by the server, shown in the panel) ---
+$_LANG['msg_no_vps'] = 'This service has no VPS yet (still provisioning?).';
+$_LANG['msg_reboot_requested'] = 'Reboot requested.';
+$_LANG['msg_start_requested'] = 'Start requested.';
+$_LANG['msg_stop_requested'] = 'Stop requested.';
+$_LANG['msg_snapshot_creating'] = 'Snapshot creation started.';
+$_LANG['msg_snapshot_reverting'] = 'Reverting to snapshot.';
+$_LANG['msg_snapshot_deleted'] = 'Snapshot deleted.';
+$_LANG['msg_backup_restoring'] = 'Restoring from automated backup.';
+$_LANG['msg_veeam_restoring'] = 'Restoring from Veeam restore point.';
+$_LANG['msg_reverse_updated'] = 'Reverse DNS updated.';
+$_LANG['msg_dns_added'] = 'Secondary DNS domain added.';
+$_LANG['msg_dns_removed'] = 'Secondary DNS domain removed.';
+$_LANG['msg_use_reinstall_n8n'] = 'Use the "Reinstall n8n" button for this service.';
+$_LANG['msg_no_image'] = 'No image selected.';
+$_LANG['msg_os_not_available'] = 'That operating system is not available for your plan.';
+$_LANG['msg_reinstall_started'] = 'Reinstall started. Your new access details will be emailed once the VPS is back up.';
+$_LANG['msg_n8n_only'] = 'This action is only available for n8n services.';
+$_LANG['msg_no_n8n_image'] = 'No n8n image is currently available for this VPS.';
+$_LANG['msg_reinstall_n8n_started'] = 'Reinstalling n8n. All data will be wiped; n8n will be fresh in a few minutes.';
+
+// --- Change Password result messages (WHMCS native page, translated server-side) ---
+$_LANG['msg_pw_no_service'] = 'no serviceName for this service.';
+$_LANG['msg_pw_no_password'] = 'no new password provided.';
+$_LANG['msg_pw_n8n'] = 'n8n is web-only and has no root password.';
+$_LANG['msg_pw_not_ready'] = 'this VPS is not ready for a password change yet. Reinstall the OS from the client area first.';
+$_LANG['msg_pw_failed'] = 'could not set the password (the VPS may be starting). Try again shortly.';

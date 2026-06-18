@@ -177,22 +177,23 @@ class Lifecycle
     public static function changePassword(array $params): string
     {
         $serviceId = (int) ($params['serviceid'] ?? 0);
+        $lang = Helper::lang((string) ($params['clientsdetails']['language'] ?? 'english'));
         $serviceName = self::serviceName($params);
         if ($serviceName === null) {
-            return 'Error: no serviceName for this service.';
+            return 'Error: ' . ($lang['msg_pw_no_service'] ?? 'no serviceName for this service.');
         }
         $newPassword = (string) ($params['password'] ?? '');
         if ($newPassword === '') {
-            return 'Error: no new password provided.';
+            return 'Error: ' . ($lang['msg_pw_no_password'] ?? 'no new password provided.');
         }
 
         $server = Database::getServer($serviceId) ?? [];
         if (stripos((string) ($server['os'] ?? ''), 'n8n') !== false) {
-            return 'Error: n8n is web-only and has no root password.';
+            return 'Error: ' . ($lang['msg_pw_n8n'] ?? 'n8n is web-only and has no root password.');
         }
         $priv = Helper::decrypt((string) ($server['ssh_privkey_enc'] ?? ''));
         if ($priv === '') {
-            return 'Error: this VPS is not ready for a password change yet. Reinstall the OS from the client area first.';
+            return 'Error: ' . ($lang['msg_pw_not_ready'] ?? 'this VPS is not ready for a password change yet. Reinstall the OS from the client area first.');
         }
 
         try {
@@ -207,7 +208,7 @@ class Lifecycle
                 : AccessBootstrap::defaultUser((string) ($server['os'] ?? ''));
 
             if ($ip === '' || !AccessBootstrap::setPassword($ip, $user, $priv, $newPassword)) {
-                return 'Error: could not set the password (the VPS may be starting). Try again shortly.';
+                return 'Error: ' . ($lang['msg_pw_failed'] ?? 'could not set the password (the VPS may be starting). Try again shortly.');
             }
 
             // Honour "never store the password": WHMCS native Change Password writes

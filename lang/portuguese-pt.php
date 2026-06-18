@@ -109,3 +109,31 @@ $_LANG['js_n8n_url'] = 'URL do n8n';
 $_LANG['js_n8n_server_ip'] = 'IP do servidor';
 $_LANG['js_n8n_port_note'] = 'A porta padrão do n8n é 5678. Se ativou HTTPS ou um reverse proxy na imagem, use esse endereço.';
 $_LANG['js_n8n_provisioning'] = 'O n8n ainda está a ser aprovisionado. Volte daqui a pouco.';
+
+// --- Action result messages (returned by the server, shown in the panel) ---
+$_LANG['msg_no_vps'] = 'Este serviço ainda não tem VPS (ainda em aprovisionamento?).';
+$_LANG['msg_reboot_requested'] = 'Reinício pedido.';
+$_LANG['msg_start_requested'] = 'Arranque pedido.';
+$_LANG['msg_stop_requested'] = 'Paragem pedida.';
+$_LANG['msg_snapshot_creating'] = 'Criação de snapshot iniciada.';
+$_LANG['msg_snapshot_reverting'] = 'A reverter para o snapshot.';
+$_LANG['msg_snapshot_deleted'] = 'Snapshot apagado.';
+$_LANG['msg_backup_restoring'] = 'A restaurar a partir do backup automático.';
+$_LANG['msg_veeam_restoring'] = 'A restaurar a partir do ponto de restauro Veeam.';
+$_LANG['msg_reverse_updated'] = 'DNS inverso atualizado.';
+$_LANG['msg_dns_added'] = 'Domínio de DNS secundário adicionado.';
+$_LANG['msg_dns_removed'] = 'Domínio de DNS secundário removido.';
+$_LANG['msg_use_reinstall_n8n'] = 'Use o botão "Reinstalar n8n" para este serviço.';
+$_LANG['msg_no_image'] = 'Nenhuma imagem selecionada.';
+$_LANG['msg_os_not_available'] = 'Esse sistema operativo não está disponível para o seu plano.';
+$_LANG['msg_reinstall_started'] = 'Reinstalação iniciada. Os seus novos dados de acesso serão enviados por email assim que o VPS voltar.';
+$_LANG['msg_n8n_only'] = 'Esta ação só está disponível para serviços n8n.';
+$_LANG['msg_no_n8n_image'] = 'Não há nenhuma imagem n8n disponível para este VPS de momento.';
+$_LANG['msg_reinstall_n8n_started'] = 'A reinstalar o n8n. Todos os dados serão apagados; o n8n estará novo dentro de minutos.';
+
+// --- Change Password result messages (WHMCS native page, translated server-side) ---
+$_LANG['msg_pw_no_service'] = 'sem serviceName para este serviço.';
+$_LANG['msg_pw_no_password'] = 'nenhuma nova palavra-passe fornecida.';
+$_LANG['msg_pw_n8n'] = 'o n8n é só web e não tem palavra-passe de root.';
+$_LANG['msg_pw_not_ready'] = 'este VPS ainda não está pronto para alterar a palavra-passe. Reinstale o SO na área de cliente primeiro.';
+$_LANG['msg_pw_failed'] = 'não foi possível definir a palavra-passe (o VPS pode estar a arrancar). Tente novamente daqui a pouco.';

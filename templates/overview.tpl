@@ -48,7 +48,26 @@
             n8n_url: "{$lang.js_n8n_url|default:'n8n URL'|escape:'javascript'}",
             n8n_server_ip: "{$lang.js_n8n_server_ip|default:'Server IP'|escape:'javascript'}",
             n8n_port_note: "{$lang.js_n8n_port_note|default:'Default n8n port is 5678. If you enabled HTTPS or a reverse proxy on the image, use that address instead.'|escape:'javascript'}",
-            n8n_provisioning: "{$lang.js_n8n_provisioning|default:'n8n is still being provisioned. Please check back shortly.'|escape:'javascript'}"
+            n8n_provisioning: "{$lang.js_n8n_provisioning|default:'n8n is still being provisioned. Please check back shortly.'|escape:'javascript'}",
+            msg_no_vps: "{$lang.msg_no_vps|default:'This service has no VPS yet (still provisioning?).'|escape:'javascript'}",
+            msg_reboot_requested: "{$lang.msg_reboot_requested|default:'Reboot requested.'|escape:'javascript'}",
+            msg_start_requested: "{$lang.msg_start_requested|default:'Start requested.'|escape:'javascript'}",
+            msg_stop_requested: "{$lang.msg_stop_requested|default:'Stop requested.'|escape:'javascript'}",
+            msg_snapshot_creating: "{$lang.msg_snapshot_creating|default:'Snapshot creation started.'|escape:'javascript'}",
+            msg_snapshot_reverting: "{$lang.msg_snapshot_reverting|default:'Reverting to snapshot.'|escape:'javascript'}",
+            msg_snapshot_deleted: "{$lang.msg_snapshot_deleted|default:'Snapshot deleted.'|escape:'javascript'}",
+            msg_backup_restoring: "{$lang.msg_backup_restoring|default:'Restoring from automated backup.'|escape:'javascript'}",
+            msg_veeam_restoring: "{$lang.msg_veeam_restoring|default:'Restoring from Veeam restore point.'|escape:'javascript'}",
+            msg_reverse_updated: "{$lang.msg_reverse_updated|default:'Reverse DNS updated.'|escape:'javascript'}",
+            msg_dns_added: "{$lang.msg_dns_added|default:'Secondary DNS domain added.'|escape:'javascript'}",
+            msg_dns_removed: "{$lang.msg_dns_removed|default:'Secondary DNS domain removed.'|escape:'javascript'}",
+            msg_use_reinstall_n8n: "{$lang.msg_use_reinstall_n8n|default:'Use the Reinstall n8n button for this service.'|escape:'javascript'}",
+            msg_no_image: "{$lang.msg_no_image|default:'No image selected.'|escape:'javascript'}",
+            msg_os_not_available: "{$lang.msg_os_not_available|default:'That operating system is not available for your plan.'|escape:'javascript'}",
+            msg_reinstall_started: "{$lang.msg_reinstall_started|default:'Reinstall started. Your new access details will be emailed once the VPS is back up.'|escape:'javascript'}",
+            msg_n8n_only: "{$lang.msg_n8n_only|default:'This action is only available for n8n services.'|escape:'javascript'}",
+            msg_no_n8n_image: "{$lang.msg_no_n8n_image|default:'No n8n image is currently available for this VPS.'|escape:'javascript'}",
+            msg_reinstall_n8n_started: "{$lang.msg_reinstall_n8n_started|default:'Reinstalling n8n. All data will be wiped; n8n will be fresh in a few minutes.'|escape:'javascript'}"
         }
     };
 </script>

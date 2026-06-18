@@ -23,7 +23,7 @@ class Actions
     {
         $serviceName = Lifecycle::serviceName($params);
         if ($serviceName === null) {
-            return self::err('This service has no VPS yet (still provisioning?).');
+            return self::err('msg_no_vps');
         }
 
         try {
@@ -45,7 +45,7 @@ class Actions
                 case 'start':
                 case 'stop':
                     $client->post('/vps/' . $serviceName . '/' . $action);
-                    return self::ok(ucfirst($action) . ' requested.');
+                    return self::ok('msg_' . $action . '_requested');
                 case 'console':
                     return self::ok('', ['url' => self::consoleUrl($client, $serviceName)]);
                 case 'images':
@@ -60,13 +60,13 @@ class Actions
                     $client->post('/vps/' . $serviceName . '/createSnapshot', array_filter([
                         'description' => (string) ($input['description'] ?? ''),
                     ]));
-                    return self::processing('Snapshot creation started.');
+                    return self::processing('msg_snapshot_creating');
                 case 'snapshot_revert':
                     $client->post('/vps/' . $serviceName . '/snapshot/revert');
-                    return self::processing('Reverting to snapshot.');
+                    return self::processing('msg_snapshot_reverting');
                 case 'snapshot_delete':
                     $client->delete('/vps/' . $serviceName . '/snapshot');
-                    return self::ok('Snapshot deleted.');
+                    return self::ok('msg_snapshot_deleted');
                 case 'task':
                     $taskId = (string) ($input['task_id'] ?? '');
                     return self::ok('', $client->get('/vps/' . $serviceName . '/tasks/' . $taskId));
@@ -82,7 +82,7 @@ class Actions
                         'restorePoint' => (string) ($input['restore_point'] ?? ''),
                         'changePassword' => !empty($input['change_password']),
                     ], static fn ($v) => $v !== '' && $v !== false));
-                    return self::processing('Restoring from automated backup.');
+                    return self::processing('msg_backup_restoring');
                 case 'veeam_status':
                     return self::ok('', [
                         'veeam' => self::safeGet($client, '/vps/' . $serviceName . '/veeam'),
@@ -91,7 +91,7 @@ class Actions
                 case 'veeam_restore':
                     $rpId = (string) ($input['restore_point_id'] ?? '');
                     $client->post('/vps/' . $serviceName . '/veeam/restorePoints/' . $rpId . '/restore');
-                    return self::processing('Restoring from Veeam restore point.');
+                    return self::processing('msg_veeam_restoring');
                 case 'disks_list':
                     return self::ok('', self::disks($client, $serviceName));
                 case 'ips_list':
@@ -101,7 +101,7 @@ class Actions
                     $client->put('/vps/' . $serviceName . '/ips/' . rawurlencode($ip), [
                         'reverse' => (string) ($input['reverse'] ?? ''),
                     ]);
-                    return self::ok('Reverse DNS updated.');
+                    return self::ok('msg_reverse_updated');
                 case 'ftp_status':
                     return self::ok('', self::safeGet($client, '/vps/' . $serviceName . '/backupftp'));
                 case 'dns_list':
@@ -111,10 +111,10 @@ class Actions
                         'domain' => (string) ($input['domain'] ?? ''),
                         'ip' => (string) ($input['ip'] ?? ''),
                     ]));
-                    return self::ok('Secondary DNS domain added.');
+                    return self::ok('msg_dns_added');
                 case 'dns_remove':
                     $client->delete('/vps/' . $serviceName . '/secondaryDnsDomains/' . rawurlencode((string) ($input['domain'] ?? '')));
-                    return self::ok('Secondary DNS domain removed.');
+                    return self::ok('msg_dns_removed');
                 case 'upgrade_list':
                     return self::ok('', [
                         'upgrades' => self::safeGet($client, '/vps/' . $serviceName . '/availableUpgrade'),
@@ -292,11 +292,11 @@ class Actions
         // n8n products do not expose the full OS reinstall: switching to a plain
         // distro would destroy the n8n appliance. They use 'reinstall_n8n'.
         if (self::isN8nService($params)) {
-            return self::err('Use the "Reinstall n8n" button for this service.');
+            return self::err('msg_use_reinstall_n8n');
         }
         $imageId = (string) ($input['image_id'] ?? '');
         if ($imageId === '') {
-            return self::err('No image selected.');
+            return self::err('msg_no_image');
         }
         // Server-side gate: the image must be in the plan's allowed list, so a
         // crafted request cannot reinstall to a managed image (paid or app image)
@@ -304,7 +304,7 @@ class Actions
         $images = self::allowedImages($client, $serviceName, $params);
         $allowedIds = array_map(static fn (array $img): string => (string) $img['id'], $images);
         if (!in_array($imageId, $allowedIds, true)) {
-            return self::err('That operating system is not available for your plan.');
+            return self::err('msg_os_not_available');
         }
 
         // Re-enter the access bootstrap so the customer gets fresh, emailed access
@@ -328,7 +328,7 @@ class Actions
             'root_pass_enc' => null,
             'access_state' => 'key_installed',
         ]);
-        return self::processing('Reinstall started. Your new access details will be emailed once the VPS is back up.');
+        return self::processing('msg_reinstall_started');
     }
 
     /**
@@ -344,7 +344,7 @@ class Actions
     private static function reinstallN8n(OvhClient $client, string $serviceName, array $params): array
     {
         if (!self::isN8nService($params)) {
-            return self::err('This action is only available for n8n services.');
+            return self::err('msg_n8n_only');
         }
         // Reinstall the product's Default OS (the n8n image the product sells), so
         // the reset is independent of any OS configurable option: the admin sets it
@@ -358,7 +358,7 @@ class Actions
             : (string) ($server['os'] ?? '');
         $imageId = ConfigOptions::pickImageId(self::availableImages($client, $serviceName), $wantedOs);
         if ($imageId === '') {
-            return self::err('No n8n image is currently available for this VPS.');
+            return self::err('msg_no_n8n_image');
         }
         $client->post('/vps/' . $serviceName . '/rebuild', [
             'imageId' => $imageId,
@@ -367,7 +367,7 @@ class Actions
         // n8n sits at access_state='web' (the cron bootstrap skips it), so re-send
         // the URL email here. The IP is unchanged, so the URL is the same.
         AccessMail::sendN8nReady((int) ($params['serviceid'] ?? 0));
-        return self::processing('Reinstalling n8n. All data will be wiped; n8n will be fresh in a few minutes.');
+        return self::processing('msg_reinstall_n8n_started');
     }
 
     /**
