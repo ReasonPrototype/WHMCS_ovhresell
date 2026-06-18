@@ -32,6 +32,10 @@ class Database
     /** Custom WHMCS email template sent when a model upgrade has completed. */
     public const EMAIL_TEMPLATE_UPGRADE = 'OVH VPS Upgrade Complete';
 
+    /** Bumped whenever the module-managed template bodies change, to force the
+     *  new version onto existing installs once (see ensureEmailTemplate). */
+    public const EMAIL_TPL_REV = '2';
+
     /**
      * Create any missing tables. Idempotent; safe to call on every request.
      */
@@ -248,85 +252,125 @@ class Database
             return;
         }
 
-        self::ensureOneTemplate(
-            self::EMAIL_TEMPLATE,
-            'Your VPS is ready',
-            '<p>Hello {$client_name},</p>'
-                . '<p>Your VPS <strong>{$service_domain}</strong> is ready.</p>'
-                . '<ul>'
-                . '<li>IP: {$service_dedicated_ip}</li>'
-                . '<li>Username: {$service_username}</li>'
-                . '<li>Password: {$root_password}</li>'
-                . '</ul>'
-                . '<p>Open the Console tab in your client area and log in, or connect over SSH: '
-                . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>',
-            'O seu VPS está pronto',
-            '<p>Olá {$client_name},</p>'
-                . '<p>O seu VPS <strong>{$service_domain}</strong> está pronto.</p>'
-                . '<ul>'
-                . '<li>IP: {$service_dedicated_ip}</li>'
-                . '<li>Utilizador: {$service_username}</li>'
-                . '<li>Palavra-passe: {$root_password}</li>'
-                . '</ul>'
-                . '<p>Abra o separador Consola na sua área de cliente e inicie sessão, ou ligue por SSH: '
-                . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>'
-        );
+        $templates = self::emailTemplates();
+        foreach ($templates as $t) {
+            self::ensureOneTemplate($t['name'], $t['subjectEn'], $t['bodyEn'], $t['subjectPt'], $t['bodyPt']);
+        }
 
-        self::ensureOneTemplate(
-            self::EMAIL_TEMPLATE_N8N,
-            'Your n8n server is ready',
-            '<p>Hello {$client_name},</p>'
-                . '<p>Your n8n server is ready.</p>'
-                . '<ul>'
-                . '<li>n8n URL: <a href="http://{$service_dedicated_ip}:5678">http://{$service_dedicated_ip}:5678</a></li>'
-                . '<li>Server IP: {$service_dedicated_ip}</li>'
-                . '</ul>'
-                . '<p>Open the URL in your browser and create your owner account on the first visit. '
-                . 'If you enabled HTTPS or a reverse proxy on the image, use that address instead.</p>',
-            'O seu servidor n8n está pronto',
-            '<p>Olá {$client_name},</p>'
-                . '<p>O seu servidor n8n está pronto.</p>'
-                . '<ul>'
-                . '<li>URL do n8n: <a href="http://{$service_dedicated_ip}:5678">http://{$service_dedicated_ip}:5678</a></li>'
-                . '<li>IP do servidor: {$service_dedicated_ip}</li>'
-                . '</ul>'
-                . '<p>Abra o URL no browser e crie a sua conta de proprietário na primeira visita. '
-                . 'Se ativou HTTPS ou um reverse proxy na imagem, use esse endereço.</p>'
-        );
+        // These templates are module-managed. When their bodies change (a new
+        // EMAIL_TPL_REV), force the current version onto existing installs ONCE,
+        // so restructures (e.g. the richer access email) actually land. Keyed by a
+        // meta flag so admin edits are not clobbered on every request.
+        if (self::getMeta('email_tpl_rev') !== self::EMAIL_TPL_REV) {
+            foreach ($templates as $t) {
+                self::forceTemplate($t['name'], $t['subjectEn'], $t['bodyEn'], $t['subjectPt'], $t['bodyPt']);
+            }
+            self::setMeta('email_tpl_rev', self::EMAIL_TPL_REV);
+        }
+    }
 
-        self::ensureOneTemplate(
-            self::EMAIL_TEMPLATE_PWCHANGED,
-            'Your VPS password was changed',
-            '<p>Hello {$client_name},</p>'
-                . '<p>The root password for your VPS <strong>{$service_product_name}</strong> was just changed.</p>'
-                . '<p>If this was not you, contact us immediately.</p>',
-            'A palavra-passe do seu VPS foi alterada',
-            '<p>Olá {$client_name},</p>'
-                . '<p>A palavra-passe de root do seu VPS <strong>{$service_product_name}</strong> acabou de ser alterada.</p>'
-                . '<p>Se não foi você, contacte-nos imediatamente.</p>'
-        );
+    /**
+     * The module-managed email templates (English base + Portuguese variant).
+     * Single source used both to insert-if-missing and to force the current rev.
+     *
+     * @return list<array{name:string,subjectEn:string,bodyEn:string,subjectPt:string,bodyPt:string}>
+     */
+    private static function emailTemplates(): array
+    {
+        return [
+            [
+                'name' => self::EMAIL_TEMPLATE,
+                'subjectEn' => 'Your VPS is ready',
+                'bodyEn' => '<p>Hello {$client_name},</p>'
+                    . '<p>Your VPS <strong>{$service_domain}</strong> is ready, running {$os}.</p>'
+                    . '<p><strong>Access details</strong></p>'
+                    . '<ul>'
+                    . '<li>IPv4: {$ipv4}</li>'
+                    . '{if $ipv6}<li>IPv6: {$ipv6}</li>{/if}'
+                    . '<li>SSH user: {$ssh_user} (use sudo for root)</li>'
+                    . '<li>Root (console): root</li>'
+                    . '<li>Password: {$root_password}</li>'
+                    . '</ul>'
+                    . '<p>For console (KVM) access, open the Console tab in your client area'
+                    . '{if $service_url}: <a href="{$service_url}">{$service_url}</a>{/if}.</p>'
+                    . '{$signature}',
+                'subjectPt' => 'O seu VPS está pronto',
+                'bodyPt' => '<p>Olá {$client_name},</p>'
+                    . '<p>O seu VPS <strong>{$service_domain}</strong> está pronto, com o sistema {$os}.</p>'
+                    . '<p><strong>Detalhes de acesso</strong></p>'
+                    . '<ul>'
+                    . '<li>IPv4: {$ipv4}</li>'
+                    . '{if $ipv6}<li>IPv6: {$ipv6}</li>{/if}'
+                    . '<li>Utilizador SSH: {$ssh_user} (use sudo para root)</li>'
+                    . '<li>Root (consola): root</li>'
+                    . '<li>Palavra-passe: {$root_password}</li>'
+                    . '</ul>'
+                    . '<p>Para a consola (KVM), abra o separador Consola na sua área de cliente'
+                    . '{if $service_url}: <a href="{$service_url}">{$service_url}</a>{/if}.</p>'
+                    . '{$signature}',
+            ],
+            [
+                'name' => self::EMAIL_TEMPLATE_N8N,
+                'subjectEn' => 'Your n8n server is ready',
+                'bodyEn' => '<p>Hello {$client_name},</p>'
+                    . '<p>Your n8n server is ready.</p>'
+                    . '<ul>'
+                    . '<li>n8n URL: <a href="http://{$service_dedicated_ip}:5678">http://{$service_dedicated_ip}:5678</a></li>'
+                    . '<li>Server IP: {$service_dedicated_ip}</li>'
+                    . '</ul>'
+                    . '<p>Open the URL in your browser and create your owner account on the first visit. '
+                    . 'If you enabled HTTPS or a reverse proxy on the image, use that address instead.</p>'
+                    . '{$signature}',
+                'subjectPt' => 'O seu servidor n8n está pronto',
+                'bodyPt' => '<p>Olá {$client_name},</p>'
+                    . '<p>O seu servidor n8n está pronto.</p>'
+                    . '<ul>'
+                    . '<li>URL do n8n: <a href="http://{$service_dedicated_ip}:5678">http://{$service_dedicated_ip}:5678</a></li>'
+                    . '<li>IP do servidor: {$service_dedicated_ip}</li>'
+                    . '</ul>'
+                    . '<p>Abra o URL no browser e crie a sua conta de proprietário na primeira visita. '
+                    . 'Se ativou HTTPS ou um reverse proxy na imagem, use esse endereço.</p>'
+                    . '{$signature}',
+            ],
+            [
+                'name' => self::EMAIL_TEMPLATE_PWCHANGED,
+                'subjectEn' => 'Your VPS password was changed',
+                'bodyEn' => '<p>Hello {$client_name},</p>'
+                    . '<p>The root password for your VPS <strong>{$service_product_name}</strong> was just changed.</p>'
+                    . '<p>If this was not you, contact us immediately.</p>'
+                    . '{$signature}',
+                'subjectPt' => 'A palavra-passe do seu VPS foi alterada',
+                'bodyPt' => '<p>Olá {$client_name},</p>'
+                    . '<p>A palavra-passe de root do seu VPS <strong>{$service_product_name}</strong> acabou de ser alterada.</p>'
+                    . '<p>Se não foi você, contacte-nos imediatamente.</p>'
+                    . '{$signature}',
+            ],
+            [
+                'name' => self::EMAIL_TEMPLATE_UPGRADE,
+                'subjectEn' => 'Your VPS upgrade is complete',
+                'bodyEn' => '<p>Hello {$client_name},</p>'
+                    . '<p>Your VPS <strong>{$service_product_name}</strong> has been upgraded and is back online. Your access details are unchanged.</p>'
+                    . '<div>{$product_specs}</div>'
+                    . '{$signature}',
+                'subjectPt' => 'O upgrade do seu VPS está concluído',
+                'bodyPt' => '<p>Olá {$client_name},</p>'
+                    . '<p>O seu VPS <strong>{$service_product_name}</strong> foi atualizado e está novamente online. Os seus acessos mantêm-se.</p>'
+                    . '<div>{$product_specs}</div>'
+                    . '{$signature}',
+            ],
+        ];
+    }
 
-        self::ensureOneTemplate(
-            self::EMAIL_TEMPLATE_UPGRADE,
-            'Your VPS upgrade is complete',
-            '<p>Hello {$client_name},</p>'
-                . '<p>Your VPS <strong>{$service_product_name}</strong> has been upgraded and is back online.</p>'
-                . '<div>{$product_specs}</div>',
-            'O upgrade do seu VPS está concluído',
-            '<p>Olá {$client_name},</p>'
-                . '<p>O seu VPS <strong>{$service_product_name}</strong> foi atualizado e está novamente online.</p>'
-                . '<div>{$product_specs}</div>'
-        );
-
-        // Existing installs already have the Access Ready template with the old
-        // {$service_password} merge field (which reads tblhosting). We now inject
-        // the password via customvars instead, so rewrite it to {$root_password}.
-        Capsule::table('tblemailtemplates')
-            ->where('name', self::EMAIL_TEMPLATE)
-            ->where('message', 'like', '%{$service_password}%')
-            ->update([
-                'message' => Capsule::raw("REPLACE(message, '{\$service_password}', '{\$root_password}')"),
-            ]);
+    /**
+     * Overwrite an existing template's subject+message to the current version
+     * (English base row + Portuguese variant). Used by the rev-flagged migration.
+     */
+    private static function forceTemplate(string $name, string $subjectEn, string $messageEn, string $subjectPt, string $messagePt): void
+    {
+        Capsule::table('tblemailtemplates')->where('name', $name)->where('language', '')
+            ->update(['subject' => $subjectEn, 'message' => $messageEn]);
+        Capsule::table('tblemailtemplates')->where('name', $name)->where('language', 'portuguese')
+            ->update(['subject' => $subjectPt, 'message' => $messagePt]);
     }
 
     /**
