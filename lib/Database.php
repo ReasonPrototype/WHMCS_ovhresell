@@ -26,6 +26,12 @@ class Database
     /** Custom WHMCS email template the cron sends when an n8n server is ready. */
     public const EMAIL_TEMPLATE_N8N = 'OVH n8n Access Ready';
 
+    /** Custom WHMCS email template for a customer-chosen password change. */
+    public const EMAIL_TEMPLATE_PWCHANGED = 'OVH VPS Password Changed';
+
+    /** Custom WHMCS email template sent when a model upgrade has completed. */
+    public const EMAIL_TEMPLATE_UPGRADE = 'OVH VPS Upgrade Complete';
+
     /**
      * Create any missing tables. Idempotent; safe to call on every request.
      */
@@ -250,7 +256,7 @@ class Database
                 . '<ul>'
                 . '<li>IP: {$service_dedicated_ip}</li>'
                 . '<li>Username: {$service_username}</li>'
-                . '<li>Password: {$service_password}</li>'
+                . '<li>Password: {$root_password}</li>'
                 . '</ul>'
                 . '<p>Open the Console tab in your client area and log in, or connect over SSH: '
                 . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>',
@@ -260,7 +266,7 @@ class Database
                 . '<ul>'
                 . '<li>IP: {$service_dedicated_ip}</li>'
                 . '<li>Utilizador: {$service_username}</li>'
-                . '<li>Palavra-passe: {$service_password}</li>'
+                . '<li>Palavra-passe: {$root_password}</li>'
                 . '</ul>'
                 . '<p>Abra o separador Consola na sua área de cliente e inicie sessão, ou ligue por SSH: '
                 . '<code>ssh {$service_username}@{$service_dedicated_ip}</code></p>'
@@ -287,6 +293,40 @@ class Database
                 . '<p>Abra o URL no browser e crie a sua conta de proprietário na primeira visita. '
                 . 'Se ativou HTTPS ou um reverse proxy na imagem, use esse endereço.</p>'
         );
+
+        self::ensureOneTemplate(
+            self::EMAIL_TEMPLATE_PWCHANGED,
+            'Your VPS password was changed',
+            '<p>Hello {$client_name},</p>'
+                . '<p>The root password for your VPS <strong>{$service_product_name}</strong> was just changed.</p>'
+                . '<p>If this was not you, contact us immediately.</p>',
+            'A palavra-passe do seu VPS foi alterada',
+            '<p>Olá {$client_name},</p>'
+                . '<p>A palavra-passe de root do seu VPS <strong>{$service_product_name}</strong> acabou de ser alterada.</p>'
+                . '<p>Se não foi você, contacte-nos imediatamente.</p>'
+        );
+
+        self::ensureOneTemplate(
+            self::EMAIL_TEMPLATE_UPGRADE,
+            'Your VPS upgrade is complete',
+            '<p>Hello {$client_name},</p>'
+                . '<p>Your VPS <strong>{$service_product_name}</strong> has been upgraded and is back online.</p>'
+                . '<div>{$product_specs}</div>',
+            'O upgrade do seu VPS está concluído',
+            '<p>Olá {$client_name},</p>'
+                . '<p>O seu VPS <strong>{$service_product_name}</strong> foi atualizado e está novamente online.</p>'
+                . '<div>{$product_specs}</div>'
+        );
+
+        // Existing installs already have the Access Ready template with the old
+        // {$service_password} merge field (which reads tblhosting). We now inject
+        // the password via customvars instead, so rewrite it to {$root_password}.
+        Capsule::table('tblemailtemplates')
+            ->where('name', self::EMAIL_TEMPLATE)
+            ->where('message', 'like', '%{$service_password}%')
+            ->update([
+                'message' => Capsule::raw("REPLACE(message, '{\$service_password}', '{\$root_password}')"),
+            ]);
     }
 
     /**
