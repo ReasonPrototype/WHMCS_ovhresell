@@ -59,3 +59,54 @@ $_LANG['erase_warning'] = 'This erases all data on the VPS.';
 $_LANG['provisioning_msg'] = 'Your VPS is still being provisioned. Please check back shortly.';
 
 $_LANG['stock_oos_combo'] = 'The selected datacenter and operating system are no longer in stock together. Please pick another datacenter or another operating system.';
+
+// --- Client-area pane text (template) ---
+$_LANG['console_intro'] = 'Open a VNC console session to your VPS in the browser.';
+$_LANG['snapshots_intro'] = 'A snapshot is a point-in-time copy you can roll back to.';
+$_LANG['backups_automated'] = 'Automated Backup';
+$_LANG['backups_veeam'] = 'Veeam Backup';
+$_LANG['backups_ftp'] = 'Backup FTP';
+$_LANG['network_ips_title'] = 'IP addresses & Reverse DNS';
+$_LANG['network_secondary_dns'] = 'Secondary DNS';
+$_LANG['n8n_intro'] = 'n8n comes pre-installed on this VPS (OVH image). Open the editor in your browser to create the owner account on first visit.';
+$_LANG['loading'] = 'Loading…';
+
+// --- Client-area JS strings (injected into window.ovhvps.lang) ---
+$_LANG['js_working'] = 'Working on your request…';
+$_LANG['js_failed'] = 'The action failed.';
+$_LANG['js_in_progress'] = 'In progress…';
+$_LANG['js_done'] = 'Done.';
+$_LANG['js_network_error'] = 'Network error. Please try again.';
+$_LANG['js_network_error_short'] = 'Network error.';
+$_LANG['js_unavailable'] = 'Unavailable.';
+$_LANG['js_not_configured'] = 'Not configured.';
+$_LANG['js_confirm_generic'] = 'Are you sure you want to proceed?';
+$_LANG['js_console_opened'] = 'Console opened below.';
+$_LANG['js_confirm_reinstall'] = 'This erases ALL data on the VPS. Continue?';
+$_LANG['js_confirm_reinstall_n8n'] = 'This ERASES ALL DATA and reinstalls n8n from scratch. Continue?';
+$_LANG['js_no_snapshot'] = 'No snapshot exists yet.';
+$_LANG['js_snapshot'] = 'Snapshot';
+$_LANG['js_present'] = 'present';
+$_LANG['js_automated_backup'] = 'Automated backup:';
+$_LANG['js_enabled'] = 'enabled';
+$_LANG['js_not_enabled'] = 'not enabled';
+$_LANG['js_veeam_not_enabled'] = 'Veeam not enabled.';
+$_LANG['js_ftp_not_enabled'] = 'Backup FTP not enabled.';
+$_LANG['js_no_additional_disks'] = 'No additional disks.';
+$_LANG['js_id'] = 'ID';
+$_LANG['js_size'] = 'Size (GB)';
+$_LANG['js_state'] = 'State';
+$_LANG['js_type'] = 'Type';
+$_LANG['js_no_ips'] = 'No IPs.';
+$_LANG['js_ip'] = 'IP';
+$_LANG['js_reverse_dns'] = 'Reverse DNS';
+$_LANG['js_no_dns'] = 'No secondary DNS domains.';
+$_LANG['js_domain'] = 'Domain';
+$_LANG['js_remove'] = 'Remove';
+$_LANG['js_unknown'] = 'unknown';
+$_LANG['js_n8n_intro'] = 'Open n8n in your browser and create your owner account on the first visit.';
+$_LANG['js_n8n_open'] = 'Open n8n';
+$_LANG['js_n8n_url'] = 'n8n URL';
+$_LANG['js_n8n_server_ip'] = 'Server IP';
+$_LANG['js_n8n_port_note'] = 'Default n8n port is 5678. If you enabled HTTPS or a reverse proxy on the image, use that address instead.';
+$_LANG['js_n8n_provisioning'] = 'n8n is still being provisioned. Please check back shortly.';
