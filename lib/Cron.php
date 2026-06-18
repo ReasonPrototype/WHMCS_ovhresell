@@ -29,6 +29,13 @@ class Cron
         $stillPending = 0;
 
         foreach ($checking as $order) {
+            // Upgrade-plan orders are closed by the upgrade-completion pass below
+            // (after the resize settles + the email goes out), not here. Skip them
+            // so this create-resolution loop does not mark them delivered early and
+            // swallow them before the upgrade email can fire.
+            if (($order->kind ?? '') === 'upgrade-plan') {
+                continue;
+            }
             $serviceId = (int) $order->service_id;
             $server = Database::getServer($serviceId);
             if ($server && !empty($server['service_name'])) {

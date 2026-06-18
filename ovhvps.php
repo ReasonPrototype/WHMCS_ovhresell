@@ -202,7 +202,6 @@ function ovhvps_ClientArea(array $params): array
         $access = [
             'state' => (string) ($server['access_state'] ?? ''),
             'user' => (string) ($server['root_user'] ?? ''),
-            'password' => Helper::decrypt((string) ($server['root_pass_enc'] ?? '')),
         ];
 
         return [

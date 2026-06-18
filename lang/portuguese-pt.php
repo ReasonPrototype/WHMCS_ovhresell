@@ -49,7 +49,7 @@ $_LANG['login_user'] = 'Utilizador';
 $_LANG['login_password'] = 'Palavra-passe';
 $_LANG['access_hint'] = 'Use estes dados no separador Consola, ou por SSH.';
 $_LANG['access_preparing'] = 'Estamos a preparar o seu acesso. Esta página mostrará o seu login em breve.';
-$_LANG['access_emailed'] = 'A tua password foi enviada por email. Usa Alterar Password para definir uma nova.';
+$_LANG['access_emailed'] = 'A sua password foi enviada por email. Use Alterar Password para definir uma nova.';
 $_LANG['ssh_key'] = 'Chave pública SSH (opcional)';
 $_LANG['ssh_key_hint'] = 'Cole a sua chave pública SSH (por exemplo, do PuTTYgen) para ativar o acesso por SSH e SFTP. Recomendado para usar PuTTY/FileZilla.';
 
