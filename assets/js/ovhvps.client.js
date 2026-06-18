@@ -22,19 +22,19 @@
     }
 
     function run(action, extra) {
-        setStatus("process", "Working on your request…");
+        setStatus("process", cfg.lang.working);
         return call(action, extra).done(function (res) {
             if (!res || res.status === "Error") {
-                setStatus("error", (res && res.message) || "The action failed.");
+                setStatus("error", (res && res.message) || cfg.lang.failed);
                 return;
             }
             if (res.status === "Processing") {
-                setStatus("process", res.message || "In progress…");
+                setStatus("process", res.message || cfg.lang.in_progress);
             } else {
-                setStatus("success", res.message || "Done.");
+                setStatus("success", res.message || cfg.lang.done);
             }
         }).fail(function () {
-            setStatus("error", "Network error. Please try again.");
+            setStatus("error", cfg.lang.network_error);
         });
     }
 
@@ -56,7 +56,7 @@
 
     // Render a flat object as a two-column table; nested values are stringified.
     function kvTable(obj) {
-        if (!obj || typeof obj !== "object") { return $("<p>").text("Not configured."); }
+        if (!obj || typeof obj !== "object") { return $("<p>").text(cfg.lang.not_configured); }
         // Hide OVH-internal identifiers so the customer never sees the .ovh.net name.
         var hiddenKeys = { serviceResourceName: 1, serviceName: 1 };
         var $t = $('<table class="table table-striped"></table>');
@@ -71,20 +71,20 @@
     }
 
     function loadInto(selector, action, render) {
-        $(selector).text("Loading…");
+        $(selector).text(cfg.lang.loading);
         call(action).done(function (res) {
             if (!res || res.status === "Error") {
-                $(selector).text((res && res.message) || "Unavailable.");
+                $(selector).text((res && res.message) || cfg.lang.unavailable);
                 return;
             }
             $(selector).empty().append(render(res.data));
-        }).fail(function () { $(selector).text("Network error."); });
+        }).fail(function () { $(selector).text(cfg.lang.network_error_short); });
     }
 
     // --- generic data-action buttons ---
     $(document).on("click", "[data-action]", function () {
         var action = $(this).data("action");
-        if ($(this).data("confirm") && !window.confirm("Are you sure you want to proceed?")) {
+        if ($(this).data("confirm") && !window.confirm(cfg.lang.confirm_generic)) {
             return;
         }
         run(action).done(function (res) {
@@ -101,7 +101,7 @@
         run("console").done(function (res) {
             if (res && res.status === "OK" && res.data && res.data.url) {
                 $("#ovhvps_novnc").attr("src", res.data.url);
-                setStatus("success", "Console opened below.");
+                setStatus("success", cfg.lang.console_opened);
             }
         });
     });
@@ -121,24 +121,24 @@
     }
 
     $(document).on("click", "#ovhvps_reinstall", function () {
-        if (!window.confirm("This erases ALL data on the VPS. Continue?")) { return; }
+        if (!window.confirm(cfg.lang.confirm_reinstall)) { return; }
         run("reinstall", { image_id: $("#ovhvps_image").val() });
     });
 
     // --- n8n reset: wipe and reinstall the n8n appliance from scratch (n8n only).
     // The server always rebuilds to an n8n image, so this can never switch the OS.
     $(document).on("click", "#ovhvps_reinstall_n8n", function () {
-        if (!window.confirm("This ERASES ALL DATA and reinstalls n8n from scratch. Continue?")) { return; }
+        if (!window.confirm(cfg.lang.confirm_reinstall_n8n)) { return; }
         run("reinstall_n8n");
     });
 
     // --- snapshots ---
     function loadSnapshot() {
         call("snapshot_list").done(function (res) {
-            var html = "No snapshot exists yet.";
+            var html = cfg.lang.no_snapshot;
             if (res && res.status === "OK" && res.data && res.data.snapshot) {
                 var s = res.data.snapshot;
-                html = "Snapshot: " + (s.description || s.creationDate || "present");
+                html = cfg.lang.snapshot + ": " + (s.description || s.creationDate || cfg.lang.present);
             }
             $("#ovhvps_snapshot_info").html(html);
         });
@@ -148,15 +148,15 @@
     function loadBackups() {
         loadInto("#ovhvps_backup_panel", "backup_status", function (d) {
             var $w = $("<div>");
-            $w.append($("<p>").text("Automated backup: " + ((d && d.backup) ? "enabled" : "not enabled")));
+            $w.append($("<p>").text(cfg.lang.automated_backup + " " + ((d && d.backup) ? cfg.lang.enabled : cfg.lang.not_enabled)));
             if (d && d.backup) { $w.append(kvTable(d.backup)); }
             return $w;
         });
         loadInto("#ovhvps_veeam_panel", "veeam_status", function (d) {
-            return (d && d.veeam) ? kvTable(d.veeam) : $("<p>").text("Veeam not enabled.");
+            return (d && d.veeam) ? kvTable(d.veeam) : $("<p>").text(cfg.lang.veeam_not_enabled);
         });
         loadInto("#ovhvps_ftp_panel", "ftp_status", function (d) {
-            return d ? kvTable(d) : $("<p>").text("Backup FTP not enabled.");
+            return d ? kvTable(d) : $("<p>").text(cfg.lang.ftp_not_enabled);
         });
     }
 
@@ -170,8 +170,8 @@
             var total = (parseInt(cfg.systemDisk, 10) || 0) + extra;
             $("#ovhvps_disks_total").text(total + " GB");
 
-            if (!list || !list.length) { return $("<p>").text("No additional disks."); }
-            var $t = $('<table class="table table-striped"><thead><tr><th>ID</th><th>Size (GB)</th><th>State</th><th>Type</th></tr></thead><tbody></tbody></table>');
+            if (!list || !list.length) { return $("<p>").text(cfg.lang.no_additional_disks); }
+            var $t = $('<table class="table table-striped"><thead><tr><th>' + cfg.lang.id + '</th><th>' + cfg.lang.size + '</th><th>' + cfg.lang.state + '</th><th>' + cfg.lang.type + '</th></tr></thead><tbody></tbody></table>');
             $.each(list, function (i, d) {
                 $t.find("tbody").append(
                     $("<tr>").append(
@@ -189,12 +189,12 @@
     // --- network: IPs + reverse DNS + secondary DNS ---
     function loadNetwork() {
         loadInto("#ovhvps_ips_panel", "ips_list", function (list) {
-            if (!list || !list.length) { return $("<p>").text("No IPs."); }
-            var $t = $('<table class="table"><thead><tr><th>IP</th><th>Reverse DNS</th><th></th></tr></thead><tbody></tbody></table>');
+            if (!list || !list.length) { return $("<p>").text(cfg.lang.no_ips); }
+            var $t = $('<table class="table"><thead><tr><th>' + cfg.lang.ip + '</th><th>' + cfg.lang.reverse_dns + '</th><th></th></tr></thead><tbody></tbody></table>');
             $.each(list, function (i, ip) {
                 var addr = ip.ipAddress || ip;
                 var $input = $('<input class="form-control input-sm">').val(ip.reverse || "");
-                var $btn = $('<button class="btn btn-sm btn-default">Save</button>').on("click", function () {
+                var $btn = $('<button class="btn btn-sm btn-default">' + cfg.lang.save + '</button>').on("click", function () {
                     run("reverse_set", { ip: addr, reverse: $input.val() });
                 });
                 $t.find("tbody").append($("<tr>").append(
@@ -206,11 +206,11 @@
             return $t;
         });
         loadInto("#ovhvps_dns_panel", "dns_list", function (list) {
-            if (!list || !list.length) { return $("<p>").text("No secondary DNS domains."); }
-            var $t = $('<table class="table"><thead><tr><th>Domain</th><th></th></tr></thead><tbody></tbody></table>');
+            if (!list || !list.length) { return $("<p>").text(cfg.lang.no_dns); }
+            var $t = $('<table class="table"><thead><tr><th>' + cfg.lang.domain + '</th><th></th></tr></thead><tbody></tbody></table>');
             $.each(list, function (i, dom) {
                 var name = (dom && dom.domain) ? dom.domain : String(dom);
-                var $btn = $('<button class="btn btn-sm btn-danger">Remove</button>').on("click", function () {
+                var $btn = $('<button class="btn btn-sm btn-danger">' + cfg.lang.remove + '</button>').on("click", function () {
                     run("dns_remove", { domain: name }).done(loadNetwork);
                 });
                 $t.find("tbody").append($("<tr>").append($("<td>").text(name), $("<td>").append($btn)));
@@ -232,17 +232,17 @@
             if (res && res.status === "OK" && res.data && res.data.url) {
                 var d = res.data;
                 $("#ovhvps_n8n_panel").html(
-                    "<p>Open n8n in your browser and create your owner account on the first visit.</p>" +
-                    '<p><a class="btn btn-primary" href="' + d.url + '" target="_blank" rel="noopener">Open n8n</a></p>' +
+                    "<p>" + cfg.lang.n8n_intro + "</p>" +
+                    '<p><a class="btn btn-primary" href="' + d.url + '" target="_blank" rel="noopener">' + cfg.lang.n8n_open + '</a></p>' +
                     "<table class='table'>" +
-                    "<tr><td><b>n8n URL</b></td><td><a href='" + d.url + "' target='_blank' rel='noopener'>" + d.url + "</a></td></tr>" +
-                    "<tr><td><b>Server IP</b></td><td>" + (d.ip || "") + "</td></tr>" +
-                    "<tr><td><b>State</b></td><td>" + (d.state || "unknown") + "</td></tr>" +
+                    "<tr><td><b>" + cfg.lang.n8n_url + "</b></td><td><a href='" + d.url + "' target='_blank' rel='noopener'>" + d.url + "</a></td></tr>" +
+                    "<tr><td><b>" + cfg.lang.n8n_server_ip + "</b></td><td>" + (d.ip || "") + "</td></tr>" +
+                    "<tr><td><b>" + cfg.lang.state + "</b></td><td>" + (d.state || cfg.lang.unknown) + "</td></tr>" +
                     "</table>" +
-                    "<p class='text-muted'>Default n8n port is 5678. If you enabled HTTPS or a reverse proxy on the image, use that address instead.</p>"
+                    "<p class='text-muted'>" + cfg.lang.n8n_port_note + "</p>"
                 );
             } else {
-                $("#ovhvps_n8n_panel").text((res && res.message) || "n8n is still being provisioned. Please check back shortly.");
+                $("#ovhvps_n8n_panel").text((res && res.message) || cfg.lang.n8n_provisioning);
             }
         });
     }
