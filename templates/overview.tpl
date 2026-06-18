@@ -7,7 +7,49 @@
         ajaxUrl: "{$WEB_ROOT}/modules/servers/ovhvps/ajax.php",
         serviceid: {$serviceid|intval},
         csrf: "{$csrf}",
-        systemDisk: {$ovh.disk|default:0|intval}
+        systemDisk: {$ovh.disk|default:0|intval},
+        lang: {
+            working: "{$lang.js_working|default:'Working on your request…'|escape:'javascript'}",
+            failed: "{$lang.js_failed|default:'The action failed.'|escape:'javascript'}",
+            in_progress: "{$lang.js_in_progress|default:'In progress…'|escape:'javascript'}",
+            done: "{$lang.js_done|default:'Done.'|escape:'javascript'}",
+            network_error: "{$lang.js_network_error|default:'Network error. Please try again.'|escape:'javascript'}",
+            network_error_short: "{$lang.js_network_error_short|default:'Network error.'|escape:'javascript'}",
+            unavailable: "{$lang.js_unavailable|default:'Unavailable.'|escape:'javascript'}",
+            not_configured: "{$lang.js_not_configured|default:'Not configured.'|escape:'javascript'}",
+            loading: "{$lang.loading|default:'Loading…'|escape:'javascript'}",
+            confirm_generic: "{$lang.js_confirm_generic|default:'Are you sure you want to proceed?'|escape:'javascript'}",
+            console_opened: "{$lang.js_console_opened|default:'Console opened below.'|escape:'javascript'}",
+            confirm_reinstall: "{$lang.js_confirm_reinstall|default:'This erases ALL data on the VPS. Continue?'|escape:'javascript'}",
+            confirm_reinstall_n8n: "{$lang.js_confirm_reinstall_n8n|default:'This ERASES ALL DATA and reinstalls n8n from scratch. Continue?'|escape:'javascript'}",
+            no_snapshot: "{$lang.js_no_snapshot|default:'No snapshot exists yet.'|escape:'javascript'}",
+            snapshot: "{$lang.js_snapshot|default:'Snapshot'|escape:'javascript'}",
+            present: "{$lang.js_present|default:'present'|escape:'javascript'}",
+            automated_backup: "{$lang.js_automated_backup|default:'Automated backup:'|escape:'javascript'}",
+            enabled: "{$lang.js_enabled|default:'enabled'|escape:'javascript'}",
+            not_enabled: "{$lang.js_not_enabled|default:'not enabled'|escape:'javascript'}",
+            veeam_not_enabled: "{$lang.js_veeam_not_enabled|default:'Veeam not enabled.'|escape:'javascript'}",
+            ftp_not_enabled: "{$lang.js_ftp_not_enabled|default:'Backup FTP not enabled.'|escape:'javascript'}",
+            no_additional_disks: "{$lang.js_no_additional_disks|default:'No additional disks.'|escape:'javascript'}",
+            id: "{$lang.js_id|default:'ID'|escape:'javascript'}",
+            size: "{$lang.js_size|default:'Size (GB)'|escape:'javascript'}",
+            state: "{$lang.js_state|default:'State'|escape:'javascript'}",
+            type: "{$lang.js_type|default:'Type'|escape:'javascript'}",
+            no_ips: "{$lang.js_no_ips|default:'No IPs.'|escape:'javascript'}",
+            ip: "{$lang.js_ip|default:'IP'|escape:'javascript'}",
+            reverse_dns: "{$lang.js_reverse_dns|default:'Reverse DNS'|escape:'javascript'}",
+            no_dns: "{$lang.js_no_dns|default:'No secondary DNS domains.'|escape:'javascript'}",
+            domain: "{$lang.js_domain|default:'Domain'|escape:'javascript'}",
+            save: "{$lang.save|default:'Save'|escape:'javascript'}",
+            remove: "{$lang.js_remove|default:'Remove'|escape:'javascript'}",
+            unknown: "{$lang.js_unknown|default:'unknown'|escape:'javascript'}",
+            n8n_intro: "{$lang.js_n8n_intro|default:'Open n8n in your browser and create your owner account on the first visit.'|escape:'javascript'}",
+            n8n_open: "{$lang.js_n8n_open|default:'Open n8n'|escape:'javascript'}",
+            n8n_url: "{$lang.js_n8n_url|default:'n8n URL'|escape:'javascript'}",
+            n8n_server_ip: "{$lang.js_n8n_server_ip|default:'Server IP'|escape:'javascript'}",
+            n8n_port_note: "{$lang.js_n8n_port_note|default:'Default n8n port is 5678. If you enabled HTTPS or a reverse proxy on the image, use that address instead.'|escape:'javascript'}",
+            n8n_provisioning: "{$lang.js_n8n_provisioning|default:'n8n is still being provisioned. Please check back shortly.'|escape:'javascript'}"
+        }
     };
 </script>
 
@@ -78,7 +120,7 @@
 
 {if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="console">
-    <p>Open a VNC console session to your VPS in the browser.</p>
+    <p>{$lang.console_intro|default:'Open a VNC console session to your VPS in the browser.'}</p>
     <button class="btn btn-primary" id="ovhvps_open_console">{$lang.open_console|default:'Open Console'}</button>
     <div style="margin-top:15px;"><iframe id="ovhvps_novnc" src="about:blank"></iframe></div>
 </div>
@@ -96,7 +138,7 @@
 {/if}
 
 <div class="ovhvps-tab-pane" data-pane="snapshots">
-    <p>A snapshot is a point-in-time copy you can roll back to.</p>
+    <p>{$lang.snapshots_intro|default:'A snapshot is a point-in-time copy you can roll back to.'}</p>
     <div id="ovhvps_snapshot_info" style="margin-bottom:12px;"></div>
     <div class="ovhvps-actions">
         <button class="btn btn-primary" data-action="snapshot_create">{$lang.create_snapshot|default:'Create Snapshot'}</button>
@@ -106,12 +148,12 @@
 </div>
 
 <div class="ovhvps-tab-pane" data-pane="backups">
-    <h4>Automated Backup</h4>
-    <div id="ovhvps_backup_panel">Loading…</div>
-    <h4 style="margin-top:20px;">Veeam Backup</h4>
-    <div id="ovhvps_veeam_panel">Loading…</div>
-    <h4 style="margin-top:20px;">Backup FTP</h4>
-    <div id="ovhvps_ftp_panel">Loading…</div>
+    <h4>{$lang.backups_automated|default:'Automated Backup'}</h4>
+    <div id="ovhvps_backup_panel">{$lang.loading|default:'Loading…'}</div>
+    <h4 style="margin-top:20px;">{$lang.backups_veeam|default:'Veeam Backup'}</h4>
+    <div id="ovhvps_veeam_panel">{$lang.loading|default:'Loading…'}</div>
+    <h4 style="margin-top:20px;">{$lang.backups_ftp|default:'Backup FTP'}</h4>
+    <div id="ovhvps_ftp_panel">{$lang.loading|default:'Loading…'}</div>
 </div>
 
 <div class="ovhvps-tab-pane" data-pane="storage">
@@ -126,27 +168,27 @@
         </div>
     </div>
     <h4>{$lang.storage_additional_disks|default:'Additional disks'}</h4>
-    <div id="ovhvps_disks_panel">Loading…</div>
+    <div id="ovhvps_disks_panel">{$lang.loading|default:'Loading…'}</div>
 </div>
 
 {if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="network">
-    <h4>IP addresses &amp; Reverse DNS</h4>
-    <div id="ovhvps_ips_panel">Loading…</div>
-    <h4 style="margin-top:20px;">Secondary DNS</h4>
-    <div id="ovhvps_dns_panel">Loading…</div>
+    <h4>{$lang.network_ips_title|default:'IP addresses &amp; Reverse DNS'}</h4>
+    <div id="ovhvps_ips_panel">{$lang.loading|default:'Loading…'}</div>
+    <h4 style="margin-top:20px;">{$lang.network_secondary_dns|default:'Secondary DNS'}</h4>
+    <div id="ovhvps_dns_panel">{$lang.loading|default:'Loading…'}</div>
     <form id="ovhvps_dns_add" class="form-inline" style="margin-top:10px;">
         <input type="text" class="form-control" name="domain" placeholder="domain.tld">
         <input type="text" class="form-control" name="ip" placeholder="IP">
-        <button type="submit" class="btn btn-primary">Add</button>
+        <button type="submit" class="btn btn-primary">{$lang.add|default:'Add'}</button>
     </form>
 </div>
 {/if}
 
 {if $isN8n}
 <div class="ovhvps-tab-pane" data-pane="n8n">
-    <p>n8n comes pre-installed on this VPS (OVH image). Open the editor in your browser to create the owner account on first visit.</p>
-    <div id="ovhvps_n8n_panel">Loading…</div>
+    <p>{$lang.n8n_intro|default:'n8n comes pre-installed on this VPS (OVH image). Open the editor in your browser to create the owner account on first visit.'}</p>
+    <div id="ovhvps_n8n_panel">{$lang.loading|default:'Loading…'}</div>
 </div>
 {/if}
 
