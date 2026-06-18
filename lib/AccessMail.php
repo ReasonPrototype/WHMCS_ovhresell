@@ -49,12 +49,15 @@ class AccessMail
     }
 
     /**
-     * Initial/after-reinstall access details for a plain VPS. Password injected,
-     * never stored. n8n services use sendN8nReady() instead.
+     * Initial/after-reinstall access details for a plain VPS. The password and the
+     * (non-secret) access fields are injected at send time; nothing is stored.
+     * $details carries os, ipv4, ipv6, ssh_user, service_url. n8n uses sendN8nReady().
+     *
+     * @param array<string, scalar> $details
      */
-    public static function sendAccessReady(int $serviceId, string $password): void
+    public static function sendAccessReady(int $serviceId, string $password, array $details = []): void
     {
-        self::send($serviceId, Database::EMAIL_TEMPLATE, ['root_password' => $password]);
+        self::send($serviceId, Database::EMAIL_TEMPLATE, array_merge($details, ['root_password' => $password]));
     }
 
     /** n8n URL email (web-only, no password). */
