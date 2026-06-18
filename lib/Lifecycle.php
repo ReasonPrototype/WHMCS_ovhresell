@@ -167,16 +167,54 @@ class Lifecycle
     }
 
     /**
+     * Set the VPS root password to the customer-chosen value over SSH, then clear
+     * it from WHMCS storage (we never persist credentials) and email a confirmation.
+     * The old OVH /setPassword path (which emailed a random password to the reseller)
+     * is replaced entirely.
+     *
      * @param array<string, mixed> $params
      */
     public static function changePassword(array $params): string
     {
+        $serviceId = (int) ($params['serviceid'] ?? 0);
         $serviceName = self::serviceName($params);
         if ($serviceName === null) {
             return 'Error: no serviceName for this service.';
         }
+        $newPassword = (string) ($params['password'] ?? '');
+        if ($newPassword === '') {
+            return 'Error: no new password provided.';
+        }
+
+        $server = Database::getServer($serviceId) ?? [];
+        if (stripos((string) ($server['os'] ?? ''), 'n8n') !== false) {
+            return 'Error: n8n is web-only and has no root password.';
+        }
+        $priv = Helper::decrypt((string) ($server['ssh_privkey_enc'] ?? ''));
+        if ($priv === '') {
+            return 'Error: this VPS is not ready for a password change yet. Reinstall the OS from the client area first.';
+        }
+
         try {
-            OvhClient::fromParams($params)->post('/vps/' . $serviceName . '/setPassword');
+            $client = OvhClient::fromParams($params);
+            $ip = (string) ($server['ip_main'] ?? '');
+            if ($ip === '') {
+                $info = Actions::info($client, $serviceName);
+                $ip = (string) ($info['ip'] ?? '');
+            }
+            $user = (string) ($server['root_user'] ?? '') !== ''
+                ? (string) $server['root_user']
+                : AccessBootstrap::defaultUser((string) ($server['os'] ?? ''));
+
+            if ($ip === '' || !AccessBootstrap::setPassword($ip, $user, $priv, $newPassword)) {
+                return 'Error: could not set the password (the VPS may be starting). Try again shortly.';
+            }
+
+            // Honour "never store the password": WHMCS native Change Password writes
+            // it to tblhosting.password; clear it right after.
+            \WHMCS\Database\Capsule::table('tblhosting')->where('id', $serviceId)->update(['password' => '']);
+
+            AccessMail::sendPasswordChanged($serviceId);
             return 'success';
         } catch (\Throwable $e) {
             return 'Error: ' . $e->getMessage();
