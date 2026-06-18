@@ -332,18 +332,38 @@ order right now. The module keeps WHMCS in sync:
 
 ## 🤖 Selling n8n
 
-OVH delivers n8n (and Docker, Plesk, ...) as **"distribution + application" OS images**,
-not as separate plans - they show up as OS values in the catalog (e.g. `Debian 12 - n8n`).
-After *Generate OVH options*, the **Operating System** option already lists them; the
-customer picks `Debian 12 - n8n` to get n8n pre-installed on the VPS they chose.
-The **Operating System** option is a single dropdown of all images; the module
-automatically attaches the matching OVH OS license addon (free Linux or paid
-Windows) from the chosen image, so the license can never be mismatched. Set your
-Windows markup as the price of the Windows image sub-options (Linux stays at 0).
+OVH delivers n8n (and Docker, ...) as **"distribution + application" OS images**, not as
+separate plans - they show up as OS values in the catalog (e.g. `Debian 12 - n8n`). So an n8n
+product uses a **normal VPS plan code**; only the OS image differs. The module decides a service
+is n8n purely from its **installed OS name containing "n8n"** - there is no separate "this is
+n8n" product flag.
 
-For a dedicated "VPS n8n" product, set the product's **Default OS** to the n8n image (and
-optionally do not expose the OS option). The client area shows the **n8n** tab with the
-access address (port 5678) whenever the installed OS is an n8n image.
+You can sell n8n two ways:
+
+**1. As one OS choice on a normal VPS product.** After *Generate OVH options* the **Operating
+System** dropdown lists every image, including the n8n one; the customer picks `Debian 12 - n8n`
+to get it pre-installed. Because the choice comes from the OS option, the module attaches the
+matching OVH license addon (free Linux, paid Windows) automatically, so the cart is always
+complete and the license can never be mismatched. Set your Windows markup as the price of the
+Windows sub-options; Linux and n8n stay at 0.
+
+**2. As a dedicated n8n product (fixed image).** Set the product's **Default OS** to the n8n
+image and its **Default Datacenter**, then **remove the Operating System configurable option**
+entirely (you may delete the whole generated option group if you do not sell datacenter choice
+or extras). The order then takes the OS from **Default OS**, so the customer makes no OS choice.
+
+> The Default OS path sends the `vps_os` value but not an explicit OS license addon. For
+> Linux/n8n that is normally fine (the Linux license is free/implicit). If a plan flags the `os`
+> addon family as mandatory and checkout reports *"Addon of type os is missing"*, keep the n8n
+> image as a **single** OS option instead (which re-emits the free license); nothing else changes.
+
+**Client area for an n8n service.** The panel is trimmed to what a web appliance needs: it shows
+**Overview**, **Snapshots**, **Backups**, **Storage**, **Upgrade** and the **n8n** tab (editor
+URL, port 5678 by default), and hides **Console**, **Reinstall OS**, **Rescue** and **Network**
+(useless or destructive for n8n). The Overview carries a **Reinstall n8n** button that wipes the
+VPS and rebuilds it to the **Default OS** (a fresh n8n, owner account recreated on first visit).
+The generic OS reinstall is also refused server-side for n8n services, so the appliance can never
+be turned into a plain distro by a crafted request.
 
 ---
 
