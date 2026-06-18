@@ -67,15 +67,27 @@ class ConfigOptions
     }
 
     /**
-     * The paid image family of an OS image name: 'windows', 'cpanel', 'plesk',
-     * or '' for a free image. Used to stop a customer reinstalling to a paid
-     * image (a license cost OVH bills us for) they are not already paying for.
-     * Pure: no WHMCS/DB dependency.
+     * The "managed" image family of an OS image name: a family a customer may
+     * reinstall to only when their VPS was ordered with that same family. Covers
+     * both paid images (a license OVH bills us for: 'windows', 'cpanel', 'plesk')
+     * and the application images we never want loose on a plain VPS ('docker',
+     * 'n8n'). Returns '' for a plain distribution (Debian, Ubuntu, Rocky, ...),
+     * which is always offered because it is free and generic.
+     *
+     * This is the single gate for the reinstall OS list:
+     *  - a plain VPS (ordered-OS family '') sees only plain distributions;
+     *  - a Windows VPS additionally sees ANY Windows image, because OVH licenses
+     *    Windows by family (one SPLA license), not per version;
+     *  - an n8n VPS additionally sees n8n images.
+     *
+     * To exclude another OVH application image in the future, add its token to
+     * the list below (each token must be distinctive enough not to collide with a
+     * plain distro name). Pure: no WHMCS/DB dependency.
      */
-    public static function paidImageFamily(string $image): string
+    public static function managedImageFamily(string $image): string
     {
         $image = strtolower($image);
-        foreach (['windows', 'cpanel', 'plesk'] as $family) {
+        foreach (['windows', 'cpanel', 'plesk', 'docker', 'n8n'] as $family) {
             if (str_contains($image, $family)) {
                 return $family;
             }

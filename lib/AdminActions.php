@@ -91,6 +91,16 @@ class AdminActions
                     $counts = Availability::refresh();
                     return self::ok('Availability refreshed: ' . $counts['inStock'] . ' in stock, ' . $counts['outOfStock'] . ' out of stock.', $counts);
 
+                case 'admin_clear_image_cache':
+                    // Drop the 24h cache of OVH reinstall images for this VPS so the
+                    // next Reinstall tab open rebuilds it live (useful for testing).
+                    $serviceName = Lifecycle::serviceName($params);
+                    if ($serviceName === null) {
+                        return self::err('No serviceName yet; nothing is cached.');
+                    }
+                    Database::forgetCache('images:' . $serviceName);
+                    return self::ok('Reinstall image cache cleared; it rebuilds on the next Reinstall tab open.');
+
                 case 'admin_order_info':
                     return self::ok('', [
                         'order' => Provisioning::getOrder($serviceId),

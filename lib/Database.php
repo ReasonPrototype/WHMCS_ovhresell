@@ -363,6 +363,12 @@ class Database
         self::setMeta('cache:' . $key, (string) json_encode(['at' => time(), 'data' => $data]));
     }
 
+    /** Drop a cached entry so the next read re-fetches from source. Idempotent. */
+    public static function forgetCache(string $key): void
+    {
+        Capsule::table(self::META)->where('mkey', 'cache:' . $key)->delete();
+    }
+
     /**
      * @param list<array{datacenter:string, linux:bool, windows:bool}>|list<string> $datacenters matrix rows (or legacy codes)
      * @param mixed $raw

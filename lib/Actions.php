@@ -238,12 +238,13 @@ class Actions
 
     /**
      * The images a customer may reinstall to: the OS options the plan sells
-     * (mod_ovhvps_option_map vps_os values) limited to the customer's paid tier.
-     * A paid family (Windows/cPanel/Plesk) is offered only when the current OS is
-     * already that family, so a customer can never reinstall into a license OVH
-     * would bill us for. Falls back to the cost-tier filter alone when the plan OS
-     * names do not line up with the image names, so reinstall always works but
-     * never leaks a paid image.
+     * (mod_ovhvps_option_map vps_os values) limited to the customer's entitled
+     * family. A managed family (paid Windows/cPanel/Plesk, or an application image
+     * like Docker/n8n) is offered only when the VPS was ordered with that same
+     * family, so a customer can never reinstall into a license OVH would bill us
+     * for, nor into an application image a plain VPS should not expose. Falls back
+     * to the family filter alone when the plan OS names do not line up with the
+     * image names, so reinstall always works but never leaks a managed image.
      *
      * @param array<string, mixed> $params
      * @return list<array{id:string,name:string}>
@@ -254,12 +255,13 @@ class Actions
 
         $serviceId = (int) ($params['serviceid'] ?? 0);
         $server = $serviceId > 0 ? (Database::getServer($serviceId) ?? []) : [];
-        $currentFamily = ConfigOptions::paidImageFamily((string) ($server['os'] ?? ''));
+        $currentFamily = ConfigOptions::managedImageFamily((string) ($server['os'] ?? ''));
 
-        // Cost guard (every path): free images always allowed; a paid family only
-        // when the customer already runs (pays for) that same family.
-        $costOk = static function (array $img) use ($currentFamily): bool {
-            $fam = ConfigOptions::paidImageFamily((string) ($img['name'] ?? ''));
+        // Family guard (every path): plain distributions are always allowed; a
+        // managed family (paid Windows/cPanel/Plesk or an app image Docker/n8n) is
+        // allowed only when the VPS was ordered with that same family.
+        $familyOk = static function (array $img) use ($currentFamily): bool {
+            $fam = ConfigOptions::managedImageFamily((string) ($img['name'] ?? ''));
             return $fam === '' || $fam === $currentFamily;
         };
 
@@ -269,16 +271,16 @@ class Actions
             $sold[ConfigOptions::normalizeOsName((string) $name)] = true;
         }
         if ($sold !== []) {
-            $primary = array_values(array_filter($all, static function (array $img) use ($sold, $costOk): bool {
-                return isset($sold[ConfigOptions::normalizeOsName((string) ($img['name'] ?? ''))]) && $costOk($img);
+            $primary = array_values(array_filter($all, static function (array $img) use ($sold, $familyOk): bool {
+                return isset($sold[ConfigOptions::normalizeOsName((string) ($img['name'] ?? ''))]) && $familyOk($img);
             }));
             if ($primary !== []) {
                 return $primary;
             }
         }
 
-        // Fallback: cost-tier filter only (still never leaks a paid image).
-        return array_values(array_filter($all, $costOk));
+        // Fallback: family filter only (still never leaks a managed image).
+        return array_values(array_filter($all, $familyOk));
     }
 
     /**
@@ -294,8 +296,9 @@ class Actions
             return self::err('No image selected.');
         }
         // Enforce server-side: the image must be in the plan's allowed list, so a
-        // crafted request cannot reinstall to a paid image (Windows/cPanel/Plesk)
-        // the customer is not paying for - that would bill us at OVH.
+        // crafted request cannot reinstall to a managed image (paid Windows/cPanel/
+        // Plesk, or an app image like Docker/n8n) the customer is not entitled to -
+        // a paid one would bill us at OVH, an app image does not belong on a plain VPS.
         $allowedIds = array_map(
             static fn (array $img): string => (string) $img['id'],
             self::allowedImages($client, $serviceName, $params)
