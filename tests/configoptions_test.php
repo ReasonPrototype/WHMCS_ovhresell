@@ -134,4 +134,19 @@ check('familySubOptions blank description falls back to planCode', ConfigOptions
     ['label' => 'storage-x', 'kind' => 'option', 'ovh_option_plan_code' => 'storage-x'],
 ]);
 
+// --- pickImageId(): resolve which image id to (re)install (n8n reset button) ---
+$imgs = [
+    ['id' => 'id-debian', 'name' => 'Debian 12'],
+    ['id' => 'id-n8n', 'name' => 'Debian 12 - n8n'],
+    ['id' => 'id-win', 'name' => 'Windows Server 2022'],
+];
+// Exact (normalised) name match wins.
+check('pickImageId exact n8n match', ConfigOptions::pickImageId($imgs, 'Debian 12 - n8n'), 'id-n8n');
+check('pickImageId plain exact match', ConfigOptions::pickImageId($imgs, 'Debian 12'), 'id-debian');
+// No exact match but same managed family: any n8n image still resolves.
+check('pickImageId n8n family fallback', ConfigOptions::pickImageId($imgs, 'Debian 12 - n8n (cloud)'), 'id-n8n');
+// A plain OS with no exact match has no family fallback, so nothing is picked.
+check('pickImageId no match -> empty', ConfigOptions::pickImageId($imgs, 'AlmaLinux 9'), '');
+check('pickImageId empty list -> empty', ConfigOptions::pickImageId([], 'Debian 12 - n8n'), '');
+
 done();

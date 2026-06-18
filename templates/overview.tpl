@@ -32,13 +32,13 @@
 
 <ul class="nav nav-tabs" id="ovhvps_tabs" role="tablist">
     <li class="active"><a href="#" data-tab="overview">{$lang.overview|default:'Overview'}</a></li>
-    <li><a href="#" data-tab="console">{$lang.console|default:'Console'}</a></li>
-    <li><a href="#" data-tab="reinstall">{$lang.reinstall|default:'Reinstall OS'}</a></li>
+    {if !$isN8n}<li><a href="#" data-tab="console">{$lang.console|default:'Console'}</a></li>{/if}
+    {if !$isN8n}<li><a href="#" data-tab="reinstall">{$lang.reinstall|default:'Reinstall OS'}</a></li>{/if}
     <li><a href="#" data-tab="snapshots">{$lang.snapshots|default:'Snapshots'}</a></li>
-    <li><a href="#" data-tab="rescue">{$lang.rescue|default:'Rescue'}</a></li>
+    {if !$isN8n}<li><a href="#" data-tab="rescue">{$lang.rescue|default:'Rescue'}</a></li>{/if}
     <li><a href="#" data-tab="backups">{$lang.backups|default:'Backups'}</a></li>
     <li><a href="#" data-tab="storage">{$lang.storage|default:'Storage'}</a></li>
-    <li><a href="#" data-tab="network">{$lang.network|default:'Network'}</a></li>
+    {if !$isN8n}<li><a href="#" data-tab="network">{$lang.network|default:'Network'}</a></li>{/if}
     <li><a href="#" data-tab="upgrade">{$lang.upgrade|default:'Upgrade'}</a></li>
     {if $isN8n}<li><a href="#" data-tab="n8n">{$lang.n8n|default:'n8n'}</a></li>{/if}
 </ul>
@@ -48,6 +48,7 @@
         <button class="btn btn-success" data-action="start">{$lang.power_on|default:'Power On'}</button>
         <button class="btn btn-warning" data-action="stop" data-confirm="1">{$lang.power_off|default:'Power Off'}</button>
         <button class="btn btn-primary" data-action="reboot" data-confirm="1">{$lang.reboot|default:'Reboot'}</button>
+        {if $isN8n}<button class="btn btn-danger" id="ovhvps_reinstall_n8n">{$lang.reinstall_n8n|default:'Reinstall n8n'}</button>{/if}
     </div>
     {if !$isN8n}
         {if $access.state == 'ready'}
@@ -77,12 +78,15 @@
     </table>
 </div>
 
+{if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="console">
     <p>Open a VNC console session to your VPS in the browser.</p>
     <button class="btn btn-primary" id="ovhvps_open_console">{$lang.open_console|default:'Open Console'}</button>
     <div style="margin-top:15px;"><iframe id="ovhvps_novnc" src="about:blank"></iframe></div>
 </div>
+{/if}
 
+{if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="reinstall">
     <p>{$lang.reinstall|default:'Reinstall OS'}. <strong>{$lang.erase_warning|default:'This erases all data on the VPS.'}</strong></p>
     <div class="form-group">
@@ -96,6 +100,7 @@
     </div>
     <button class="btn btn-danger" id="ovhvps_reinstall" data-confirm="1">{$lang.reinstall_btn|default:'Reinstall'}</button>
 </div>
+{/if}
 
 <div class="ovhvps-tab-pane" data-pane="snapshots">
     <p>A snapshot is a point-in-time copy you can roll back to.</p>
@@ -107,6 +112,7 @@
     </div>
 </div>
 
+{if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="rescue">
     <p>Boot into a rescue environment for maintenance, then back to normal.</p>
     <div class="ovhvps-actions">
@@ -114,6 +120,7 @@
         <button class="btn btn-default" data-action="rescue_off" data-confirm="1">{$lang.boot_normal|default:'Boot Normal Mode'}</button>
     </div>
 </div>
+{/if}
 
 <div class="ovhvps-tab-pane" data-pane="backups">
     <h4>Automated Backup</h4>
@@ -135,6 +142,7 @@
     <div id="ovhvps_disks_panel">Loading…</div>
 </div>
 
+{if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="network">
     <h4>IP addresses &amp; Reverse DNS</h4>
     <div id="ovhvps_ips_panel">Loading…</div>
@@ -146,6 +154,7 @@
         <button type="submit" class="btn btn-primary">Add</button>
     </form>
 </div>
+{/if}
 
 <div class="ovhvps-tab-pane" data-pane="upgrade">
     <p>Plans you can upgrade this VPS to. Upgrades change billing and are applied by your provider.</p>

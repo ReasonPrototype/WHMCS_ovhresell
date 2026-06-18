@@ -102,6 +102,35 @@ class ConfigOptions
     }
 
     /**
+     * Pick the image id to (re)install for a wanted OS from a list of available
+     * images. Prefers an exact (normalised) name match with $wantedOs; otherwise
+     * the first image in the same managed family (e.g. any n8n image when the
+     * service is n8n, so a slightly different image name still resolves). Returns
+     * '' when nothing matches. Used by the n8n "reinstall from scratch" button to
+     * rebuild to a fresh n8n image without ever leaving the n8n family. Pure.
+     *
+     * @param list<array{id:string,name:string}> $images
+     */
+    public static function pickImageId(array $images, string $wantedOs): string
+    {
+        $want = self::normalizeOsName($wantedOs);
+        foreach ($images as $img) {
+            if (self::normalizeOsName((string) ($img['name'] ?? '')) === $want && $want !== '') {
+                return (string) ($img['id'] ?? '');
+            }
+        }
+        $family = self::managedImageFamily($wantedOs);
+        if ($family !== '') {
+            foreach ($images as $img) {
+                if (self::managedImageFamily((string) ($img['name'] ?? '')) === $family) {
+                    return (string) ($img['id'] ?? '');
+                }
+            }
+        }
+        return '';
+    }
+
+    /**
      * The OS license planCode implied by a chosen OS image: a Windows image needs the
      * paid Windows license, anything else maps to the (free) Linux license. Returns
      * null when the required planCode is absent (e.g. a legacy plan with no os family).

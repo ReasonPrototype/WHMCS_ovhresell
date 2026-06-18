@@ -52,6 +52,8 @@ class Actions
                     return self::ok('', self::images($client, $serviceName, $params));
                 case 'reinstall':
                     return self::reinstall($client, $serviceName, $params, $input);
+                case 'reinstall_n8n':
+                    return self::reinstallN8n($client, $serviceName, $params);
                 case 'snapshot_list':
                     return self::ok('', self::snapshotInfo($client, $serviceName));
                 case 'snapshot_create':
@@ -291,6 +293,13 @@ class Actions
      */
     private static function reinstall(OvhClient $client, string $serviceName, array $params, array $input): array
     {
+        // n8n products do not expose the full OS reinstall: switching to a plain
+        // distro would destroy the n8n appliance. They use the dedicated
+        // 'reinstall_n8n' wipe-and-reset path instead. Refuse here server-side so a
+        // crafted request cannot bypass the hidden Reinstall tab.
+        if (self::isN8nService($params)) {
+            return self::err('Use the "Reinstall n8n" button for this service.');
+        }
         $imageId = (string) ($input['image_id'] ?? '');
         if ($imageId === '') {
             return self::err('No image selected.');
@@ -322,6 +331,53 @@ class Actions
         }
         $client->post('/vps/' . $serviceName . '/rebuild', $body);
         return self::processing('Reinstall started. The VPS will reboot into the new OS.');
+    }
+
+    /**
+     * Wipe-and-reinstall an n8n service to a fresh n8n image: the sanctioned
+     * "start from zero" path for an n8n product, which does not expose the full OS
+     * reinstall. The target is always an n8n image (resolved from the ordered OS),
+     * so the customer can never leave the n8n family here. n8n is web-only, so no
+     * password email is sent (the owner account is recreated on the first visit).
+     *
+     * @param array<string, mixed> $params
+     * @return array{status:string, message:string, data:mixed}
+     */
+    private static function reinstallN8n(OvhClient $client, string $serviceName, array $params): array
+    {
+        if (!self::isN8nService($params)) {
+            return self::err('This action is only available for n8n services.');
+        }
+        $serviceId = (int) ($params['serviceid'] ?? 0);
+        $server = $serviceId > 0 ? (Database::getServer($serviceId) ?? []) : [];
+        $imageId = ConfigOptions::pickImageId(
+            self::availableImages($client, $serviceName),
+            (string) ($server['os'] ?? '')
+        );
+        if ($imageId === '') {
+            return self::err('No n8n image is currently available for this VPS.');
+        }
+        $client->post('/vps/' . $serviceName . '/rebuild', [
+            'imageId' => $imageId,
+            'doNotSendPassword' => true,
+        ]);
+        return self::processing('Reinstalling n8n. All data will be wiped; n8n will be fresh in a few minutes.');
+    }
+
+    /**
+     * Whether the service is an n8n product, decided (as everywhere in the module)
+     * by the ordered OS image name containing "n8n".
+     *
+     * @param array<string, mixed> $params
+     */
+    private static function isN8nService(array $params): bool
+    {
+        $serviceId = (int) ($params['serviceid'] ?? 0);
+        if ($serviceId <= 0) {
+            return false;
+        }
+        $server = Database::getServer($serviceId) ?? [];
+        return stripos((string) ($server['os'] ?? ''), 'n8n') !== false;
     }
 
     /**
