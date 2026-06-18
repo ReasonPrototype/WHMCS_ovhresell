@@ -231,7 +231,9 @@ class Cron
 
         // Step B: set the console password over SSH, then mark ready + notify.
         if ($state === 'key_installed') {
-            $ip = self::mainIp($client, $serviceName);
+            $info = Actions::info($client, $serviceName);
+            $ip = (string) ($info['ip'] ?? '');
+            $ipv6 = (string) ($info['ipv6'] ?? '');
             $user = AccessBootstrap::defaultUser($os);
             $priv = Helper::decrypt((string) ($row['ssh_privkey_enc'] ?? ''));
             $pass = AccessBootstrap::generatePassword();
@@ -241,7 +243,7 @@ class Cron
                     'ip_main' => $ip,
                     'access_state' => 'ready',
                 ]);
-                self::notifyReady($serviceId, $pass);
+                self::notifyReady($serviceId, $pass, $os, $ip, $ipv6, $user);
                 Helper::log('cron:access', ['service_id' => $serviceId], ['ready' => true, 'user' => $user], true, $serviceId);
             }
             // else: stay key_installed; the next tick retries (VPS still booting).
@@ -284,23 +286,38 @@ class Cron
 
     /**
      * Mirror the non-secret fields (username, IP) into the WHMCS service so the
-     * admin sees them, then email the access details with the password injected
-     * at send time (never stored). The password is passed in, not read back.
+     * admin sees them, then email the access details with the password and the
+     * (non-secret) access fields injected at send time (never stored).
      */
-    private static function notifyReady(int $serviceId, string $password): void
+    private static function notifyReady(int $serviceId, string $password, string $os, string $ipv4, string $ipv6, string $sshUser): void
     {
-        $server = Database::getServer($serviceId) ?: [];
         try {
             Capsule::table('tblhosting')->where('id', $serviceId)->update([
-                'username' => (string) ($server['root_user'] ?? ''),
-                'dedicatedip' => (string) ($server['ip_main'] ?? ''),
+                'username' => $sshUser,
+                'dedicatedip' => $ipv4,
             ]);
         } catch (\Throwable $e) {
             Helper::log('cron:notify', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
         }
 
-        AccessMail::sendAccessReady($serviceId, $password);
+        AccessMail::sendAccessReady($serviceId, $password, [
+            'os' => $os,
+            'ipv4' => $ipv4,
+            'ipv6' => $ipv6,
+            'ssh_user' => $sshUser,
+            'service_url' => self::serviceUrl($serviceId),
+        ]);
         Helper::log('cron:notify', ['service_id' => $serviceId], ['emailed' => true], true, $serviceId);
+    }
+
+    /**
+     * The customer's WHMCS service-page URL (where the Console tab lives), built
+     * from the configured System URL. Empty when the System URL is unknown.
+     */
+    private static function serviceUrl(int $serviceId): string
+    {
+        $base = rtrim((string) ($GLOBALS['CONFIG']['SystemURL'] ?? ''), '/');
+        return $base === '' ? '' : ($base . '/clientarea.php?action=productdetails&id=' . $serviceId);
     }
 
     /**
