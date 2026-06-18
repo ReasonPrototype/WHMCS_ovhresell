@@ -34,7 +34,7 @@ class Database
 
     /** Bumped whenever the module-managed template bodies change, to force the
      *  new version onto existing installs once (see ensureEmailTemplate). */
-    public const EMAIL_TPL_REV = '2';
+    public const EMAIL_TPL_REV = '3';
 
     /**
      * Create any missing tables. Idempotent; safe to call on every request.
@@ -342,7 +342,7 @@ class Database
                 'subjectPt' => 'A palavra-passe do seu VPS foi alterada',
                 'bodyPt' => '<p>Olá {$client_name},</p>'
                     . '<p>A palavra-passe de root do seu VPS <strong>{$service_product_name}</strong> acabou de ser alterada.</p>'
-                    . '<p>Se não foi você, contacte-nos imediatamente.</p>'
+                    . '<p>Se não reconhece esta alteração, contacte-nos imediatamente.</p>'
                     . '{$signature}',
             ],
             [
