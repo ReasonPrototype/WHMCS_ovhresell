@@ -101,6 +101,41 @@ class Cron
             }
         }
 
+        // Model-upgrade completion: an 'upgrade-plan' order sits at status
+        // 'checking' from Upgrade::plan. When the resize+reboot has settled (the
+        // VPS is 'running' again), email the customer once and close the order.
+        $pendingUpgrades = Capsule::table(Database::ORDERS)
+            ->where('kind', 'upgrade-plan')
+            ->where('status', 'checking')
+            ->get();
+        foreach ($pendingUpgrades as $up) {
+            $serviceId = (int) $up->service_id;
+            $params = Helper::paramsForService($serviceId);
+            if ($params === null) {
+                continue;
+            }
+            try {
+                $server = Database::getServer($serviceId) ?? [];
+                $serviceName = (string) ($server['service_name'] ?? '');
+                if ($serviceName === '') {
+                    continue;
+                }
+                $vps = (array) OvhClient::fromParams($params)->get('/vps/' . $serviceName);
+                if ((string) ($vps['state'] ?? '') !== 'running') {
+                    continue; // resize still in progress; retry next tick
+                }
+                Database::upsertServer($serviceId, ['state' => 'running']);
+                Capsule::table(Database::ORDERS)->where('id', $up->id)->update([
+                    'status' => 'delivered',
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+                AccessMail::sendUpgradeComplete($serviceId);
+                Helper::log('cron:upgrade', ['service_id' => $serviceId], ['emailed' => true], true, $serviceId);
+            } catch (\Throwable $e) {
+                Helper::log('cron:upgrade', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
+            }
+        }
+
         // Refresh OVH stock -> WHMCS product availability (throttled to hourly).
         try {
             Availability::refreshIfDue();
