@@ -348,12 +348,17 @@ class Actions
         if (!self::isN8nService($params)) {
             return self::err('This action is only available for n8n services.');
         }
+        // Reinstall the product's Default OS (the n8n image the product sells), so
+        // the reset is independent of any OS configurable option: the admin sets it
+        // once on the product and the button always rebuilds to it. Fall back to the
+        // OS the VPS was ordered with when no Default OS is configured.
+        $cfg = Helper::cfg($params);
         $serviceId = (int) ($params['serviceid'] ?? 0);
         $server = $serviceId > 0 ? (Database::getServer($serviceId) ?? []) : [];
-        $imageId = ConfigOptions::pickImageId(
-            self::availableImages($client, $serviceName),
-            (string) ($server['os'] ?? '')
-        );
+        $wantedOs = trim($cfg['default_os']) !== ''
+            ? trim($cfg['default_os'])
+            : (string) ($server['os'] ?? '');
+        $imageId = ConfigOptions::pickImageId(self::availableImages($client, $serviceName), $wantedOs);
         if ($imageId === '') {
             return self::err('No n8n image is currently available for this VPS.');
         }
