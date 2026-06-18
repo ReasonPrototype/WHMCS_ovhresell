@@ -35,7 +35,6 @@
     {if !$isN8n}<li><a href="#" data-tab="console">{$lang.console|default:'Console'}</a></li>{/if}
     {if !$isN8n}<li><a href="#" data-tab="reinstall">{$lang.reinstall|default:'Reinstall OS'}</a></li>{/if}
     <li><a href="#" data-tab="snapshots">{$lang.snapshots|default:'Snapshots'}</a></li>
-    {if !$isN8n}<li><a href="#" data-tab="rescue">{$lang.rescue|default:'Rescue'}</a></li>{/if}
     <li><a href="#" data-tab="backups">{$lang.backups|default:'Backups'}</a></li>
     <li><a href="#" data-tab="storage">{$lang.storage|default:'Storage'}</a></li>
     {if !$isN8n}<li><a href="#" data-tab="network">{$lang.network|default:'Network'}</a></li>{/if}
@@ -55,10 +54,9 @@
             <table class="table ovhvps-info" style="margin-bottom:16px;">
                 <tbody>
                     <tr><th>{$lang.login_user|default:'Username'}</th><td>{$access.user}</td></tr>
-                    <tr><th>{$lang.login_password|default:'Password'}</th><td><code>{$access.password}</code></td></tr>
                 </tbody>
             </table>
-            <p class="text-muted">{$lang.access_hint|default:'Use these in the Console tab, or over SSH.'}</p>
+            <p class="text-muted">{$lang.access_emailed|default:'Your password was sent by email. Use Change Password to set a new one.'}</p>
         {elseif $access.state != '' && $access.state != 'failed'}
             <div class="alert alert-info">{$lang.access_preparing|default:'We are preparing your access. This page will show your login shortly.'}</div>
         {/if}
@@ -106,16 +104,6 @@
         <button class="btn btn-danger" data-action="snapshot_delete" data-confirm="1">{$lang.delete|default:'Delete'}</button>
     </div>
 </div>
-
-{if !$isN8n}
-<div class="ovhvps-tab-pane" data-pane="rescue">
-    <p>Boot into a rescue environment for maintenance, then back to normal.</p>
-    <div class="ovhvps-actions">
-        <button class="btn btn-warning" data-action="rescue_on" data-confirm="1">{$lang.boot_rescue|default:'Boot Rescue Mode'}</button>
-        <button class="btn btn-default" data-action="rescue_off" data-confirm="1">{$lang.boot_normal|default:'Boot Normal Mode'}</button>
-    </div>
-</div>
-{/if}
 
 <div class="ovhvps-tab-pane" data-pane="backups">
     <h4>Automated Backup</h4>

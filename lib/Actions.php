@@ -67,10 +67,6 @@ class Actions
                 case 'snapshot_delete':
                     $client->delete('/vps/' . $serviceName . '/snapshot');
                     return self::ok('Snapshot deleted.');
-                case 'rescue_on':
-                    return self::setNetboot($client, $serviceName, 'rescue');
-                case 'rescue_off':
-                    return self::setNetboot($client, $serviceName, 'local');
                 case 'task':
                     $taskId = (string) ($input['task_id'] ?? '');
                     return self::ok('', $client->get('/vps/' . $serviceName . '/tasks/' . $taskId));
@@ -401,18 +397,6 @@ class Actions
             // 404 when no snapshot exists.
             return ['snapshot' => null];
         }
-    }
-
-    /**
-     * Toggle rescue/local netboot and reboot into it.
-     *
-     * @return array{status:string, message:string, data:mixed}
-     */
-    private static function setNetboot(OvhClient $client, string $serviceName, string $mode): array
-    {
-        $client->put('/vps/' . $serviceName, ['netbootMode' => $mode]);
-        $client->post('/vps/' . $serviceName . '/reboot');
-        return self::processing($mode === 'rescue' ? 'Rebooting into rescue mode.' : 'Rebooting into normal mode.');
     }
 
     /**
