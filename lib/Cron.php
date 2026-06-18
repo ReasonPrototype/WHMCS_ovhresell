@@ -196,11 +196,10 @@ class Cron
             if ($ip !== '' && $priv !== '' && AccessBootstrap::setPassword($ip, $user, $priv, $pass)) {
                 Database::upsertServer($serviceId, [
                     'root_user' => $user,
-                    'root_pass_enc' => Helper::encrypt($pass),
                     'ip_main' => $ip,
                     'access_state' => 'ready',
                 ]);
-                self::notifyReady($serviceId);
+                self::notifyReady($serviceId, $pass);
                 Helper::log('cron:access', ['service_id' => $serviceId], ['ready' => true, 'user' => $user], true, $serviceId);
             }
             // else: stay key_installed; the next tick retries (VPS still booting).
@@ -242,29 +241,23 @@ class Cron
     }
 
     /**
-     * Mirror the resolved credentials into the WHMCS service so the email merge
-     * fields resolve, then send the access email once.
-     *
-     * LIVE-VERIFY: tblhosting.password expects a WHMCS-encrypted value, which is
-     * what root_pass_enc holds (Helper::encrypt == localAPI EncryptPassword). If a
-     * WHMCS version differs, switch to localAPI('UpdateClientProduct', ...).
+     * Mirror the non-secret fields (username, IP) into the WHMCS service so the
+     * admin sees them, then email the access details with the password injected
+     * at send time (never stored). The password is passed in, not read back.
      */
-    private static function notifyReady(int $serviceId): void
+    private static function notifyReady(int $serviceId, string $password): void
     {
         $server = Database::getServer($serviceId) ?: [];
         try {
             Capsule::table('tblhosting')->where('id', $serviceId)->update([
                 'username' => (string) ($server['root_user'] ?? ''),
-                'password' => (string) ($server['root_pass_enc'] ?? ''),
                 'dedicatedip' => (string) ($server['ip_main'] ?? ''),
             ]);
         } catch (\Throwable $e) {
             Helper::log('cron:notify', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
         }
 
-        if (function_exists('localAPI')) {
-            localAPI('SendEmail', ['messagename' => Database::EMAIL_TEMPLATE, 'id' => $serviceId]);
-        }
+        AccessMail::sendAccessReady($serviceId, $password);
         Helper::log('cron:notify', ['service_id' => $serviceId], ['emailed' => true], true, $serviceId);
     }
 
