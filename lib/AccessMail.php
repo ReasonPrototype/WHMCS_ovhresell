@@ -40,11 +40,18 @@ class AccessMail
         if ($cv !== '') {
             $payload['customvars'] = $cv;
         }
-        localAPI('SendEmail', $payload);
-        Helper::log('accessmail', ['service_id' => $serviceId, 'template' => $templateName], ['sent' => true], true, $serviceId);
+        $result = localAPI('SendEmail', $payload);
+        // Surface the real outcome: SendEmail returns ['result' => 'success'|'error'].
+        // A missing template (e.g. before ensureEmailTemplate has run) fails here, so
+        // never log a blind 'sent' that hides it.
+        $ok = (($result['result'] ?? '') === 'success');
+        Helper::log('accessmail', ['service_id' => $serviceId, 'template' => $templateName], $result, $ok, $serviceId);
     }
 
-    /** Initial/after-reinstall access details. Password injected, never stored. */
+    /**
+     * Initial/after-reinstall access details for a plain VPS. Password injected,
+     * never stored. n8n services use sendN8nReady() instead.
+     */
     public static function sendAccessReady(int $serviceId, string $password): void
     {
         self::send($serviceId, Database::EMAIL_TEMPLATE, ['root_password' => $password]);
