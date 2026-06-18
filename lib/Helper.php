@@ -228,6 +228,13 @@ class Helper
     {
         $_LANG = [];
         $safe = strtolower(preg_replace('/[^a-z\-]/i', '', $language) ?? '');
+        // WHMCS ships 'portuguese' (historically Brazilian) and 'portuguese-pt'
+        // (European). This module only provides European Portuguese, so map ANY
+        // Portuguese locale to portuguese-pt - otherwise a client whose WHMCS
+        // language is 'portuguese' would fall through to English in the panel.
+        if (strncmp($safe, 'portuguese', 10) === 0) {
+            $safe = 'portuguese-pt';
+        }
         $file = dirname(__DIR__) . '/lang/' . $safe . '.php';
         if ($safe === '' || !is_file($file)) {
             $file = dirname(__DIR__) . '/lang/english.php';

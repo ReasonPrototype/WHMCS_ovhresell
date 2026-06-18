@@ -37,4 +37,10 @@ check('plain debian family', ConfigOptions::managedImageFamily('Debian 12'), '')
 check('plain ubuntu family', ConfigOptions::managedImageFamily('Ubuntu 24.04'), '');
 check('normalize os', ConfigOptions::normalizeOsName('  Debian   12 '), 'debian 12');
 
+// --- Helper::lang: WHMCS 'portuguese' must map to European portuguese-pt, not fall to English ---
+check('lang portuguese -> pt', Helper::lang('portuguese')['power_on'], 'Ligar');
+check('lang portuguese-pt -> pt', Helper::lang('portuguese-pt')['power_on'], 'Ligar');
+check('lang english stays en', Helper::lang('english')['power_on'], 'Power On');
+check('lang unknown -> en', Helper::lang('klingon')['power_on'], 'Power On');
+
 done();
