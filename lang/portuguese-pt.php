@@ -44,6 +44,7 @@ $_LANG['disk'] = 'Disco (GB)';
 // Storage tab section headings.
 $_LANG['storage_vps_disk'] = 'Disco da VPS';
 $_LANG['storage_additional_disks'] = 'Discos adicionais';
+$_LANG['storage_total'] = 'Armazenamento total';
 $_LANG['operating_system'] = 'Sistema Operativo';
 $_LANG['login_user'] = 'Utilizador';
 $_LANG['login_password'] = 'Palavra-passe';

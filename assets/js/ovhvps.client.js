@@ -163,6 +163,13 @@
     // --- storage / disks ---
     function loadDisks() {
         loadInto("#ovhvps_disks_panel", "disks_list", function (list) {
+            var extra = 0;
+            if (list && list.length) {
+                $.each(list, function (i, d) { extra += parseInt(d.size, 10) || 0; });
+            }
+            var total = (parseInt(cfg.systemDisk, 10) || 0) + extra;
+            $("#ovhvps_disks_total").text(total + " GB");
+
             if (!list || !list.length) { return $("<p>").text("No additional disks."); }
             var $t = $('<table class="table table-striped"><thead><tr><th>ID</th><th>Size (GB)</th><th>State</th><th>Type</th></tr></thead><tbody></tbody></table>');
             $.each(list, function (i, d) {

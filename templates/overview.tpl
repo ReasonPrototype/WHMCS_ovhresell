@@ -6,7 +6,8 @@
     window.ovhvps = {
         ajaxUrl: "{$WEB_ROOT}/modules/servers/ovhvps/ajax.php",
         serviceid: {$serviceid|intval},
-        csrf: "{$csrf}"
+        csrf: "{$csrf}",
+        systemDisk: {$ovh.disk|default:0|intval}
     };
 </script>
 
@@ -114,12 +115,16 @@
 </div>
 
 <div class="ovhvps-tab-pane" data-pane="storage">
-    <h4>{$lang.storage_vps_disk|default:'VPS disk'}</h4>
-    <table class="table table-striped ovhvps-info" style="margin-bottom:16px;">
-        <tbody>
-            <tr><th>{$lang.disk|default:'Disk (GB)'}</th><td>{$ovh.disk|default:'-'}</td></tr>
-        </tbody>
-    </table>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px 14px;">
+            <div style="color:#888;font-size:12px;">{$lang.storage_vps_disk|default:'System disk'}</div>
+            <div style="font-size:20px;font-weight:600;">{$ovh.disk|default:'-'} GB</div>
+        </div>
+        <div style="border:1px solid #ddd;border-radius:6px;padding:10px 14px;">
+            <div style="color:#888;font-size:12px;">{$lang.storage_total|default:'Total storage'}</div>
+            <div style="font-size:20px;font-weight:600;" id="ovhvps_disks_total">{$ovh.disk|default:'-'} GB</div>
+        </div>
+    </div>
     <h4>{$lang.storage_additional_disks|default:'Additional disks'}</h4>
     <div id="ovhvps_disks_panel">Loading…</div>
 </div>
