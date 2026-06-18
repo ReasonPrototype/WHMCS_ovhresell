@@ -294,9 +294,7 @@ class Actions
     private static function reinstall(OvhClient $client, string $serviceName, array $params, array $input): array
     {
         // n8n products do not expose the full OS reinstall: switching to a plain
-        // distro would destroy the n8n appliance. They use the dedicated
-        // 'reinstall_n8n' wipe-and-reset path instead. Refuse here server-side so a
-        // crafted request cannot bypass the hidden Reinstall tab.
+        // distro would destroy the n8n appliance. They use 'reinstall_n8n'.
         if (self::isN8nService($params)) {
             return self::err('Use the "Reinstall n8n" button for this service.');
         }
@@ -304,33 +302,37 @@ class Actions
         if ($imageId === '') {
             return self::err('No image selected.');
         }
-        // Enforce server-side: the image must be in the plan's allowed list, so a
-        // crafted request cannot reinstall to a managed image (paid Windows/cPanel/
-        // Plesk, or an app image like Docker/n8n) the customer is not entitled to -
-        // a paid one would bill us at OVH, an app image does not belong on a plain VPS.
-        $allowedIds = array_map(
-            static fn (array $img): string => (string) $img['id'],
-            self::allowedImages($client, $serviceName, $params)
-        );
+        // Server-side gate: the image must be in the plan's allowed list, so a
+        // crafted request cannot reinstall to a managed image (paid or app image)
+        // the customer is not entitled to.
+        $images = self::allowedImages($client, $serviceName, $params);
+        $allowedIds = array_map(static fn (array $img): string => (string) $img['id'], $images);
         if (!in_array($imageId, $allowedIds, true)) {
             return self::err('That operating system is not available for your plan.');
         }
-        $body = ['imageId' => $imageId];
-        if (!empty($input['ssh_key'])) {
-            $sshKey = trim((string) $input['ssh_key']);
-            // OVH 'sshKey' expects a key NAME from /me/sshKey; a raw public key
-            // (has a space, or an algorithm prefix) must go in 'publicSshKey'.
-            if (str_contains($sshKey, ' ') || preg_match('/^(ssh-|ecdsa-)/i', $sshKey) === 1) {
-                $body['publicSshKey'] = $sshKey;
-            } else {
-                $body['sshKey'] = $sshKey;
+
+        // Re-enter the access bootstrap so the customer gets fresh, emailed access
+        // details exactly like a new order: rebuild with OUR management key (no OVH
+        // password email), record it, and let the cron set + email the password.
+        $osName = '';
+        foreach ($images as $img) {
+            if ((string) $img['id'] === $imageId) {
+                $osName = (string) ($img['name'] ?? '');
+                break;
             }
         }
-        if (!empty($input['do_not_send_password'])) {
-            $body['doNotSendPassword'] = true;
-        }
-        $client->post('/vps/' . $serviceName . '/rebuild', $body);
-        return self::processing('Reinstall started. The VPS will reboot into the new OS.');
+        $serviceId = (int) ($params['serviceid'] ?? 0);
+        $pair = AccessBootstrap::generateKeyPair();
+        AccessBootstrap::installKey($client, $serviceName, $imageId, $pair['public']);
+        Database::upsertServer($serviceId, [
+            'os' => $osName,
+            'ssh_pubkey' => $pair['public'],
+            'ssh_privkey_enc' => Helper::encrypt($pair['private']),
+            'root_user' => null,
+            'root_pass_enc' => null,
+            'access_state' => 'key_installed',
+        ]);
+        return self::processing('Reinstall started. Your new access details will be emailed once the VPS is back up.');
     }
 
     /**
