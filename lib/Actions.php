@@ -368,6 +368,9 @@ class Actions
             'imageId' => $imageId,
             'doNotSendPassword' => true,
         ]);
+        // n8n sits at access_state='web' (the cron bootstrap skips it), so re-send
+        // the URL email here. The IP is unchanged, so the URL is the same.
+        AccessMail::sendN8nReady((int) ($params['serviceid'] ?? 0));
         return self::processing('Reinstalling n8n. All data will be wiped; n8n will be fresh in a few minutes.');
     }
 
