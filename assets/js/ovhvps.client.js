@@ -52,7 +52,6 @@
         if (tab === "backups") { loadBackups(); }
         if (tab === "storage") { loadDisks(); }
         if (tab === "network") { loadNetwork(); }
-        if (tab === "upgrade") { loadUpgrade(); }
     });
 
     // Render a flat object as a two-column table; nested values are stringified.
@@ -219,21 +218,6 @@
         var ip = $(this).find('[name="ip"]').val();
         run("dns_add", { domain: domain, ip: ip }).done(loadNetwork);
     });
-
-    // --- upgrade ---
-    function loadUpgrade() {
-        loadInto("#ovhvps_upgrade_panel", "upgrade_list", function (d) {
-            var ups = (d && d.upgrades) || [];
-            if (!ups.length) { return $("<p>").text("No upgrades available for this VPS."); }
-            var $t = $('<table class="table table-striped"><thead><tr><th>Plan</th><th>Details</th></tr></thead><tbody></tbody></table>');
-            $.each(ups, function (i, u) {
-                var plan = u.planCode || u.plan || u.name || (typeof u === "string" ? u : JSON.stringify(u));
-                var desc = u.description || u.invoiceName || "";
-                $t.find("tbody").append($("<tr>").append($("<td>").text(plan), $("<td>").text(desc)));
-            });
-            return $t;
-        });
-    }
 
     // --- n8n access info (shown when the installed OS is an n8n image) ---
     function loadN8n() {
