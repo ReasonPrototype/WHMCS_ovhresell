@@ -1,5 +1,7 @@
 {*
-    OVH VPS / VPS-n8n - client area management page.
+    OVH VPS - client area management page.
+    The n8n tab is additive: it appears when the installed OS image is n8n;
+    every other tab is always present regardless of the image.
     All actions POST to ajax.php (CSRF + ownership enforced server-side).
 *}
 <script>
@@ -21,7 +23,6 @@
             confirm_generic: "{$lang.js_confirm_generic|default:'Are you sure you want to proceed?'|escape:'javascript'}",
             console_opened: "{$lang.js_console_opened|default:'Console opened below.'|escape:'javascript'}",
             confirm_reinstall: "{$lang.js_confirm_reinstall|default:'This erases ALL data on the VPS. Continue?'|escape:'javascript'}",
-            confirm_reinstall_n8n: "{$lang.js_confirm_reinstall_n8n|default:'This ERASES ALL DATA and reinstalls n8n from scratch. Continue?'|escape:'javascript'}",
             no_snapshot: "{$lang.js_no_snapshot|default:'No snapshot exists yet.'|escape:'javascript'}",
             snapshot: "{$lang.js_snapshot|default:'Snapshot'|escape:'javascript'}",
             present: "{$lang.js_present|default:'present'|escape:'javascript'}",
@@ -61,13 +62,10 @@
             msg_reverse_updated: "{$lang.msg_reverse_updated|default:'Reverse DNS updated.'|escape:'javascript'}",
             msg_dns_added: "{$lang.msg_dns_added|default:'Secondary DNS domain added.'|escape:'javascript'}",
             msg_dns_removed: "{$lang.msg_dns_removed|default:'Secondary DNS domain removed.'|escape:'javascript'}",
-            msg_use_reinstall_n8n: "{$lang.msg_use_reinstall_n8n|default:'Use the Reinstall n8n button for this service.'|escape:'javascript'}",
             msg_no_image: "{$lang.msg_no_image|default:'No image selected.'|escape:'javascript'}",
             msg_os_not_available: "{$lang.msg_os_not_available|default:'That operating system is not available for your plan.'|escape:'javascript'}",
             msg_reinstall_started: "{$lang.msg_reinstall_started|default:'Reinstall started. Your new access details will be emailed once the VPS is back up.'|escape:'javascript'}",
-            msg_n8n_only: "{$lang.msg_n8n_only|default:'This action is only available for n8n services.'|escape:'javascript'}",
-            msg_no_n8n_image: "{$lang.msg_no_n8n_image|default:'No n8n image is currently available for this VPS.'|escape:'javascript'}",
-            msg_reinstall_n8n_started: "{$lang.msg_reinstall_n8n_started|default:'Reinstalling n8n. All data will be wiped; n8n will be fresh in a few minutes.'|escape:'javascript'}"
+            msg_n8n_only: "{$lang.msg_n8n_only|default:'This action is only available for n8n services.'|escape:'javascript'}"
         }
     };
 </script>
@@ -94,12 +92,12 @@
 
 <ul class="nav nav-tabs" id="ovhvps_tabs" role="tablist">
     <li class="active"><a href="#" data-tab="overview">{$lang.overview|default:'Overview'}</a></li>
-    {if !$isN8n}<li><a href="#" data-tab="console">{$lang.console|default:'Console'}</a></li>{/if}
-    {if !$isN8n}<li><a href="#" data-tab="reinstall">{$lang.reinstall|default:'Reinstall OS'}</a></li>{/if}
+    <li><a href="#" data-tab="console">{$lang.console|default:'Console'}</a></li>
+    <li><a href="#" data-tab="reinstall">{$lang.reinstall|default:'Reinstall OS'}</a></li>
     <li><a href="#" data-tab="snapshots">{$lang.snapshots|default:'Snapshots'}</a></li>
     <li><a href="#" data-tab="backups">{$lang.backups|default:'Backups'}</a></li>
     <li><a href="#" data-tab="storage">{$lang.storage|default:'Storage'}</a></li>
-    {if !$isN8n}<li><a href="#" data-tab="network">{$lang.network|default:'Network'}</a></li>{/if}
+    <li><a href="#" data-tab="network">{$lang.network|default:'Network'}</a></li>
     {if $isN8n}<li><a href="#" data-tab="n8n">{$lang.n8n|default:'n8n'}</a></li>{/if}
 </ul>
 
@@ -108,19 +106,16 @@
         <button class="btn btn-success" data-action="start">{$lang.power_on|default:'Power On'}</button>
         <button class="btn btn-warning" data-action="stop" data-confirm="1">{$lang.power_off|default:'Power Off'}</button>
         <button class="btn btn-primary" data-action="reboot" data-confirm="1">{$lang.reboot|default:'Reboot'}</button>
-        {if $isN8n}<button class="btn btn-danger" id="ovhvps_reinstall_n8n">{$lang.reinstall_n8n|default:'Reinstall n8n'}</button>{/if}
     </div>
-    {if !$isN8n}
-        {if $access.state == 'ready'}
-            <table class="table ovhvps-info" style="margin-bottom:16px;">
-                <tbody>
-                    <tr><th>{$lang.login_user|default:'Username'}</th><td>{$access.user}</td></tr>
-                </tbody>
-            </table>
-            <p class="text-muted">{$lang.access_emailed|default:'Your password was sent by email. Use Change Password to set a new one.'}</p>
-        {elseif $access.state != '' && $access.state != 'failed'}
-            <div class="alert alert-info">{$lang.access_preparing|default:'We are preparing your access. This page will show your login shortly.'}</div>
-        {/if}
+    {if $access.state == 'ready'}
+        <table class="table ovhvps-info" style="margin-bottom:16px;">
+            <tbody>
+                <tr><th>{$lang.login_user|default:'Username'}</th><td>{$access.user}</td></tr>
+            </tbody>
+        </table>
+        <p class="text-muted">{$lang.access_emailed|default:'Your password was sent by email. Use Change Password to set a new one.'}</p>
+    {elseif $access.state != '' && $access.state != 'failed'}
+        <div class="alert alert-info">{$lang.access_preparing|default:'We are preparing your access. This page will show your login shortly.'}</div>
     {/if}
     <table class="table table-striped ovhvps-info">
         <tbody>
@@ -137,15 +132,12 @@
     </table>
 </div>
 
-{if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="console">
     <p>{$lang.console_intro|default:'Open a VNC console session to your VPS in the browser.'}</p>
     <button class="btn btn-primary" id="ovhvps_open_console">{$lang.open_console|default:'Open Console'}</button>
     <div style="margin-top:15px;"><iframe id="ovhvps_novnc" src="about:blank"></iframe></div>
 </div>
-{/if}
 
-{if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="reinstall">
     <p>{$lang.reinstall|default:'Reinstall OS'}. <strong>{$lang.erase_warning|default:'This erases all data on the VPS.'}</strong></p>
     <div class="form-group">
@@ -154,7 +146,6 @@
     </div>
     <button class="btn btn-danger" id="ovhvps_reinstall" data-confirm="1">{$lang.reinstall_btn|default:'Reinstall'}</button>
 </div>
-{/if}
 
 <div class="ovhvps-tab-pane" data-pane="snapshots">
     <p>{$lang.snapshots_intro|default:'A snapshot is a point-in-time copy you can roll back to.'}</p>
@@ -190,7 +181,6 @@
     <div id="ovhvps_disks_panel">{$lang.loading|default:'Loading…'}</div>
 </div>
 
-{if !$isN8n}
 <div class="ovhvps-tab-pane" data-pane="network">
     <h4>{$lang.network_ips_title|default:'IP addresses &amp; Reverse DNS'}</h4>
     <div id="ovhvps_ips_panel">{$lang.loading|default:'Loading…'}</div>
@@ -202,7 +192,6 @@
         <button type="submit" class="btn btn-primary">{$lang.add|default:'Add'}</button>
     </form>
 </div>
-{/if}
 
 {if $isN8n}
 <div class="ovhvps-tab-pane" data-pane="n8n">

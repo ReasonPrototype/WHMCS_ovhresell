@@ -188,9 +188,6 @@ class Lifecycle
         }
 
         $server = Database::getServer($serviceId) ?? [];
-        if (stripos((string) ($server['os'] ?? ''), 'n8n') !== false) {
-            return 'Error: ' . ($lang['msg_pw_n8n'] ?? 'n8n is web-only and has no root password.');
-        }
         $priv = Helper::decrypt((string) ($server['ssh_privkey_enc'] ?? ''));
         if ($priv === '') {
             return 'Error: ' . ($lang['msg_pw_not_ready'] ?? 'this VPS is not ready for a password change yet. Reinstall the OS from the client area first.');

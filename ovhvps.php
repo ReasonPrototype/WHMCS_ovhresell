@@ -1,7 +1,8 @@
 <?php
 
 /**
- * OVHcloud VPS / VPS-n8n server module for WHMCS.
+ * OVHcloud VPS server module for WHMCS: one VPS product where the customer
+ * picks the OS image, including the free Docker and n8n application images.
  *
  * Install: drop this folder into /modules/servers/ovhvps and run
  * "composer install" inside it. Configure an OVH API key on the server
@@ -34,7 +35,7 @@ require_once __DIR__ . '/lib/bootstrap.php';
 function ovhvps_MetaData(): array
 {
     return [
-        'DisplayName' => 'OVHcloud VPS / VPS-n8n',
+        'DisplayName' => 'OVHcloud VPS',
         'APIVersion' => '1.1',
         'RequiresServer' => true,
         'DefaultNonSSLPort' => '80',
@@ -150,7 +151,8 @@ function ovhvps_TerminateAccount(array $params): string
 }
 
 /**
- * Reset the VPS root password (OVH emails the new one to the account holder).
+ * Set the customer-chosen root password over SSH (see Lifecycle::changePassword);
+ * the password is never stored and a confirmation email is sent.
  *
  * @param array<string, mixed> $params
  */
@@ -198,7 +200,7 @@ function ovhvps_ClientArea(array $params): array
         $os = (string) ($server['os'] ?? ($info['os'] ?? ''));
         $isN8n = stripos($os, 'n8n') !== false;
 
-        // Access credentials for the overview panel (plain VPS, once bootstrapped).
+        // Access credentials for the overview panel (any image, once bootstrapped).
         $access = [
             'state' => (string) ($server['access_state'] ?? ''),
             'user' => (string) ($server['root_user'] ?? ''),

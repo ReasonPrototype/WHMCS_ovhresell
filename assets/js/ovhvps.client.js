@@ -129,13 +129,6 @@
         run("reinstall", { image_id: $("#ovhvps_image").val() });
     });
 
-    // --- n8n reset: wipe and reinstall the n8n appliance from scratch (n8n only).
-    // The server always rebuilds to an n8n image, so this can never switch the OS.
-    $(document).on("click", "#ovhvps_reinstall_n8n", function () {
-        if (!window.confirm(cfg.lang.confirm_reinstall_n8n)) { return; }
-        run("reinstall_n8n");
-    });
-
     // --- snapshots ---
     function loadSnapshot() {
         call("snapshot_list").done(function (res) {
