@@ -1,6 +1,6 @@
 {
     "name": "ovhvps/whmcs-module",
-    "description": "WHMCS server module to resell OVHcloud VPS and VPS-n8n",
+    "description": "WHMCS server module to resell OVHcloud VPS with customer-selectable OS images (Linux, Docker, n8n)",
     "type": "library",
     "license": "proprietary",
     "require": {

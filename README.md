@@ -5,13 +5,17 @@
 ![OVHcloud](https://img.shields.io/badge/OVHcloud-VPS%20API%20v6-123f6d)
 ![License](https://img.shields.io/badge/license-Source--Available%20(No%20Resale)-2ea44f)
 
-Resell **OVHcloud VPS** (and VPS pre-installed with **[n8n](https://n8n.io/)**) straight from WHMCS, with
-automatic ordering on your own OVH account, a full self-service control panel in the
-client area, billing that matches the OVH commitment term, and automatic cancellation.
+Resell **OVHcloud VPS** straight from WHMCS: one product where the customer picks the OS
+image (free Linux distros, the **[Docker](https://www.docker.com/)** and
+**[n8n](https://n8n.io/)** app images, and optionally paid Windows), with automatic
+ordering on your own OVH account, a full self-service control panel in the client area,
+billing that matches the OVH commitment term, and automatic cancellation. cPanel and
+Plesk images are never offered (their licenses would be billed to you).
 
 > **TL;DR** A customer orders a VPS in your WHMCS store → the module places the order on
 > *your* OVH account, pays it automatically, resolves the delivered VPS, and hands the
-> customer a control panel (power, console, reinstall, snapshots, backups, network, n8n, ...).
+> customer a control panel (power, console, reinstall, snapshots, backups, network, ...).
+> If the installed image is n8n, an extra **n8n** tab appears on top of the normal ones.
 > You keep the margin between your WHMCS price and your OVH cost.
 
 ---
@@ -29,7 +33,7 @@ client area, billing that matches the OVH commitment term, and automatic cancell
 9. [Billing: WHMCS cycle to OVH commitment](#-billing-whmcs-cycle-to-ovh-commitment)
 10. [Stock / availability](#-stock--availability)
 11. [How it works (lifecycle)](#-how-it-works-lifecycle)
-12. [Selling n8n](#-selling-n8n)
+12. [OS images (Docker, n8n, Windows)](#-os-images-docker-n8n-windows)
 13. [Useful commands](#-useful-commands)
 14. [Testing](#-testing)
 15. [Localization note](#-localization-note)
@@ -49,14 +53,14 @@ client area, billing that matches the OVH commitment term, and automatic cancell
 | **Automatic provisioning** | Orders the VPS through the OVH order cart, pays it with the account's preferred payment method (`autoPay`), and resolves the delivered `serviceName`. Idempotent: a service that already has an order is never re-ordered (no double billing). |
 | **Asynchronous delivery** | If OVH has not finished building the VPS at checkout time, the WHMCS cron finishes the job and maps the new VPS to the service. |
 | **Catalog sync** | Pulls the public OVH VPS catalog (plans, datacenters, OS images, add-ons) into local cache tables for the configuration UI. |
-| **One-click configurable options** | Generates the WHMCS *Configurable Options* (Operating System, Datacenter, and paid extras) for a product directly from the OVH catalog - no need to create a service first. |
+| **One-click configurable options** | Generates the WHMCS *Configurable Options* (Operating System, Datacenter, and paid extras) for a product directly from the OVH catalog - no need to create a service first. The OS dropdown offers every catalog image except the cPanel/Plesk families (never sold). Re-running the generation SYNCS the options: existing prices are kept, new options start at 0, removed ones are deleted. |
 | **Billing term matching** | Picks the OVH commitment that matches the customer's WHMCS billing cycle, capturing the deepest discount **without ever committing you on OVH for longer than the customer paid**. Multi-year terms re-commit automatically. |
 | **Live stock control** | Hourly check of OVH stock per plan and per datacenter, driving WHMCS native stock control. Out-of-stock datacenters render as disabled options in the cart. |
 | **Suspend / unsuspend** | Maps to OVH `stop` / `start`. |
 | **Automatic cancellation** | On cancellation/termination, schedules OVH deletion at the end of the paid term (`renew.deleteAtExpiration`, no email token) so OVH stops billing you, and stops the VPS immediately. |
 | **Option & model upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`). It also upgrades the VPS to a bigger model in place (`ChangePackage` to a larger plan, via OVH `order/upgrade`). Both are add-only, auto-paid, and gated (orderability/`availableUpgrade` + a dry-run before every charge). |
-| **Customer control panel** | Power, VNC console, OS reinstall, snapshots, rescue mode, automated backups, Veeam, additional disks, IPs + reverse DNS, secondary DNS, available upgrades, usage graphs. |
-| **n8n tab** | When the installed OS is an n8n image, the client area shows an **n8n** tab with the editor URL (port 5678 by default). |
+| **Customer control panel** | Power, VNC console, OS reinstall, snapshots, automated backups, Veeam, additional disks, IPs + reverse DNS, secondary DNS. Every service gets the full panel and root access, whatever the installed image. |
+| **n8n tab** | When the installed OS is an n8n image, the client area shows an **n8n** tab with the editor URL (port 5678 by default) IN ADDITION to all the normal tabs. |
 | **Admin service panel** | All client actions plus admin-only controls: sync catalog, generate options, retry provisioning, set `serviceName` manually, confirm immediate termination, toggle delete-at-expiration, and view OVH cost (your margin). |
 | **Audit trail** | Every OVH API call and order step is logged to the WHMCS module log and to the module's own task-log table. Each order records the OVH dry-run cost for margin auditing. |
 
@@ -175,7 +179,7 @@ You receive three values: **Application Key**, **Application Secret**, and **Con
 
 The API keys go on the **Server** configuration (not on the product):
 `Configuration → System Settings → Servers → Add New Server`, module
-**OVHcloud VPS / VPS-n8n**. WHMCS shows generic fields - the module reuses them like this:
+**OVHcloud VPS**. WHMCS shows generic fields - the module reuses them like this:
 
 | WHMCS field | What to put there |
 |---|---|
@@ -194,7 +198,7 @@ Then put this server in a **Server Group** and link your products to that group.
 
 ## 🛠️ Create and configure a product
 
-1. Create a product using the **OVHcloud VPS / VPS-n8n** module and link it to the
+1. Create a product using the **OVHcloud VPS** module and link it to the
    **Server Group** that holds the server with the credentials.
 2. On the **Module Settings** tab:
 
@@ -204,7 +208,7 @@ Then put this server in a **Server Group** and link your products to that group.
    | **VPS Plan Code** | from the [plan table](#-plan-codes), e.g. `vps-2025-model1` |
    | **Billing Duration** | `P1M` *(fallback - see [Billing](#-billing-whmcs-cycle-to-ovh-commitment))* |
    | **Pricing Mode** | `default` *(fallback)* |
-   | **Default OS** | e.g. `Debian 12` (used if the customer does not pick one) |
+   | **Default OS** | e.g. `Debian 12` (fallback only, used if the customer does not pick one; use a plain free Linux image) |
    | **Default Datacenter** | e.g. `GRA` (**required** - the plan's only mandatory config) |
    | **Auto Delete On Terminate** | on (automatic cancellation at end of term) |
    | **Request Immediate Termination** | off (only enable for token-based instant termination) |
@@ -215,12 +219,14 @@ Then put this server in a **Server Group** and link your products to that group.
    OVH options** → it syncs the catalog and automatically creates the *Configurable
    Options* (Operating System, Datacenter, and extras) for this product. **You do not need
    to create a service first.**
-5. Options are created at **price 0**: OS and Datacenter stay free (normal); set the
-   **price of the extras** (Backup, Snapshot, Disk, IP, Veeam) in the WHMCS native
-   *Configurable Options* editor. Out-of-stock datacenters become unavailable automatically
-   (see [Stock](#-stock--availability)).
-6. Clicking **Generate OVH options** again **recreates** the options and **resets prices to
-   0** (it asks for confirmation first).
+5. New options are created at **price 0**: OS and Datacenter stay free (normal, except a
+   Windows markup if you sell Windows); set the **price of the extras** (Backup, Snapshot,
+   Disk, IP, Veeam) in the WHMCS native *Configurable Options* editor. Out-of-stock
+   datacenters become unavailable automatically (see [Stock](#-stock--availability)).
+6. Clicking **Generate OVH options** again **syncs** the options with the catalog:
+   existing options **keep their prices**, new catalog entries are added at price 0, and
+   options no longer offered (e.g. an image OVH retired, or the excluded cPanel/Plesk
+   families) are removed.
 
 > The same set of actions also exists on the admin **service** panel
 > (*OVH VPS Management*): Sync Catalog, Generate Config Options, Check Stock, Retry
@@ -321,49 +327,60 @@ order right now. The module keeps WHMCS in sync:
   `order/upgrade`. Both are *add-only*, auto-paid, and gated (orderability/`availableUpgrade`
   + dry-run); the model resize reboots the VPS and the cron refreshes the model afterwards.
   Removals and downgrades are refused with a message.
-- **Client area**: power, VNC console, OS reinstall, snapshots, rescue, backups, Veeam,
-  disks, IPs + reverse DNS, secondary DNS, upgrade, graphs, and an **n8n** tab shown
-  automatically when the installed OS is an n8n image.
+- **Client area**: power, VNC console, OS reinstall, snapshots, backups, Veeam, disks,
+  IPs + reverse DNS, secondary DNS - the full panel for every service, plus an **n8n**
+  tab shown automatically (in addition to the normal tabs) when the installed OS is an
+  n8n image.
 - **Admin service panel**: every client action + sync catalog, generate options, retry
   provisioning, set `serviceName`, confirm termination, toggle delete-at-expiration, and
   cost/margin info.
 
 ---
 
-## 🤖 Selling n8n
+## 🤖 OS images (Docker, n8n, Windows)
 
-OVH delivers n8n (and Docker, ...) as **"distribution + application" OS images**, not as
-separate plans - they show up as OS values in the catalog (e.g. `Debian 12 - n8n`). So an n8n
-product uses a **normal VPS plan code**; only the OS image differs. The module decides a service
-is n8n purely from its **installed OS name containing "n8n"** - there is no separate "this is
-n8n" product flag.
+OVH delivers applications like n8n and Docker as **"distribution + application" OS images**,
+not as separate plans - they show up as OS values in the catalog (e.g. `Debian 12 - n8n`).
+There is **one product and one sale path**: after *Generate OVH options* the **Operating
+System** dropdown lists the plan's catalog images and the customer picks one. Because the
+choice comes from the OS option, the module attaches the matching OVH license addon (free
+Linux, paid Windows) automatically, so the cart is always complete and the license can never
+be mismatched.
 
-You can sell n8n two ways:
+Image policy, enforced server-side at generation AND at reinstall:
 
-**1. As one OS choice on a normal VPS product.** After *Generate OVH options* the **Operating
-System** dropdown lists every image, including the n8n one; the customer picks `Debian 12 - n8n`
-to get it pre-installed. Because the choice comes from the OS option, the module attaches the
-matching OVH license addon (free Linux, paid Windows) automatically, so the cart is always
-complete and the license can never be mismatched. Set your Windows markup as the price of the
-Windows sub-options; Linux and n8n stay at 0.
+| Family | Sold? | Reinstall? |
+|---|---|---|
+| Plain Linux distros (Debian, Ubuntu, ...) | ✅ free | ✅ any service |
+| App images (**Docker**, **n8n**) | ✅ free | ✅ any service (in and out) |
+| **Windows** | ✅ paid OVH license attached; set your markup as the price of the Windows sub-options | 🔒 only a service ordered with Windows |
+| **cPanel / Plesk** | ❌ never (their licenses would be billed to you) | ❌ never |
 
-**2. As a dedicated n8n product (fixed image).** Set the product's **Default OS** to the n8n
-image and its **Default Datacenter**, then **remove the Operating System configurable option**
-entirely (you may delete the whole generated option group if you do not sell datacenter choice
-or extras). The order then takes the OS from **Default OS**, so the customer makes no OS choice.
+**n8n is just an image.** The module decides a service is n8n purely from its **installed OS
+name containing "n8n"** (refreshed on every reinstall) - there is no separate n8n product or
+flag. Every service gets the **full client panel** (Console, Reinstall OS, Network, root
+access, password change, ...); when the installed image is n8n, an extra **n8n** tab appears
+with the editor URL (port 5678 by default). Reinstall to a plain distro and the tab
+disappears; reinstall to n8n and it comes back.
 
-> The Default OS path sends the `vps_os` value but not an explicit OS license addon. For
-> Linux/n8n that is normally fine (the Linux license is free/implicit). If a plan flags the `os`
-> addon family as mandatory and checkout reports *"Addon of type os is missing"*, keep the n8n
-> image as a **single** OS option instead (which re-emits the free license); nothing else changes.
+**Access emails.** Every delivered or reinstalled VPS goes through the SSH access bootstrap
+and receives the **"OVH VPS Access Ready"** email (root user + password). When the installed
+image is n8n, the customer additionally receives **"OVH n8n Access Ready"** with the editor
+URL (the owner account is created on the first browser visit; reinstalling resets it).
 
-**Client area for an n8n service.** The panel is trimmed to what a web appliance needs: it shows
-**Overview**, **Snapshots**, **Backups**, **Storage**, **Upgrade** and the **n8n** tab (editor
-URL, port 5678 by default), and hides **Console**, **Reinstall OS**, **Rescue** and **Network**
-(useless or destructive for n8n). The Overview carries a **Reinstall n8n** button that wipes the
-VPS and rebuilds it to the **Default OS** (a fresh n8n, owner account recreated on first visit).
-The generic OS reinstall is also refused server-side for n8n services, so the appliance can never
-be turned into a plain distro by a crafted request.
+### Upgrading from the split VPS/VPS-n8n model
+
+Earlier versions sold n8n as a separate trimmed-down product. To migrate a deployed WHMCS:
+
+1. Upload/extract the new module zip over `modules/servers/ovhvps/` (plain overwrite).
+2. Delete the dedicated n8n product(s) and their generated *Configurable Options* group.
+3. On each remaining VPS product, click **Generate OVH options** once - the sync adds the
+   n8n/Docker images, removes cPanel/Plesk, and **keeps your configured prices**.
+4. Old n8n test services sit at `access_state = 'web'` (no root access). Either terminate
+   them, or force the bootstrap with
+   `UPDATE mod_ovhvps_servers SET access_state = 'none' WHERE access_state = 'web';`
+   (**destructive**: the bootstrap rebuilds the VPS).
+5. Email templates update automatically on the next request (template revision bump).
 
 ---
 
