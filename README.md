@@ -363,14 +363,19 @@ access, password change, ...); when the installed image is n8n, an extra **n8n**
 with the editor URL (port 5678 by default). Reinstall to a plain distro and the tab
 disappears; reinstall to n8n and it comes back.
 
-**Access emails.** Every delivered or reinstalled VPS goes through the SSH access bootstrap
-and receives the **"OVH VPS Access Ready"** email (root user + password). When the installed
-image is n8n, the customer additionally receives **"OVH n8n Access Ready"** with the editor
-URL (the owner account is created on the first browser visit; reinstalling resets it).
+**Access emails.** Every delivered or reinstalled **Linux** VPS goes through the SSH access
+bootstrap and receives the **"OVH VPS Access Ready"** email (root user + password). When the
+installed image is n8n, the customer additionally receives **"OVH n8n Access Ready"** with
+the editor URL (the owner account is created on the first browser visit; reinstalling resets
+it).
 
-> ⚠️ The SSH access bootstrap only works on **Linux** images. If you sell Windows, plan to
-> deliver the Windows credentials to the customer manually (the panel still works; the
-> automated password/email flow does not apply to Windows).
+> ⚠️ **Windows is delivered manually.** There is no SSH bootstrap on Windows and the module
+> never rebuilds a delivered Windows VPS (that would wipe the OVH-installed licensed Windows).
+> Instead, once OVH reports the IPv4 the cron mirrors it into the service, parks it at
+> `access_state = 'manual'`, sends the customer the credential-free **"OVH VPS Windows Ready"**
+> email, and emails the WHMCS admins to deliver the login by hand: OVH sends the Windows
+> administrator password to the **OVH account owner** (also visible in the OVH Manager), never
+> to your customer. The client panel (power, console, network, ...) works as usual.
 
 ### Upgrading from the split VPS/VPS-n8n model
 

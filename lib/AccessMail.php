@@ -66,6 +66,62 @@ class AccessMail
         self::send($serviceId, Database::EMAIL_TEMPLATE_N8N);
     }
 
+    /**
+     * Windows delivery: the VPS is online, but the module never knows the
+     * Windows password (OVH mails it to the OVH account owner), so the
+     * customer gets a credential-free heads-up and the admin delivers the
+     * login manually (see sendAdminManualAccess).
+     */
+    public static function sendWindowsReady(int $serviceId): void
+    {
+        self::send($serviceId, Database::EMAIL_TEMPLATE_WINDOWS);
+    }
+
+    /**
+     * Pure builder for the reseller notification sent when a Windows VPS
+     * comes online and needs manual credential delivery. Admin-facing, so
+     * English only (per project convention). Pure: no WHMCS/DB dependency.
+     *
+     * @return array{subject:string, body:string}
+     */
+    public static function adminManualAccessMessage(int $serviceId, string $domain, string $os, string $ip): array
+    {
+        $label = '#' . $serviceId . ($domain !== '' ? ' (' . $domain . ')' : '');
+        $body = '<p>Service ' . $label . ' was delivered with a Windows image ('
+            . $os . ') and is now online at ' . $ip . '.</p>'
+            . '<p>The module cannot set or email Windows credentials: OVH sent the '
+            . 'administrator password to the OVH account email at install time, and '
+            . 'it is also available in the OVH Manager. Please deliver the login '
+            . 'details to the customer manually.</p>'
+            . '<p>The service was marked with access state "manual"; the customer '
+            . 'received a heads-up email without credentials and no credential email '
+            . 'will be sent automatically.</p>';
+        return [
+            'subject' => 'OVH VPS: manual access delivery needed for service ' . $label,
+            'body' => $body,
+        ];
+    }
+
+    /**
+     * Notify the WHMCS admins (the reseller) that a Windows VPS is online and
+     * its credentials must be delivered manually. Uses the SendAdminEmail API
+     * with a custom message, so no admin template setup is required.
+     */
+    public static function sendAdminManualAccess(int $serviceId, string $domain, string $os, string $ip): void
+    {
+        if ($serviceId <= 0 || !function_exists('localAPI')) {
+            return;
+        }
+        $msg = self::adminManualAccessMessage($serviceId, $domain, $os, $ip);
+        $result = localAPI('SendAdminEmail', [
+            'customsubject' => $msg['subject'],
+            'custommessage' => $msg['body'],
+            'type' => 'system',
+        ]);
+        $ok = (($result['result'] ?? '') === 'success');
+        Helper::log('accessmail', ['service_id' => $serviceId, 'admin' => 'manual-access'], $result, $ok, $serviceId);
+    }
+
     /** Confirmation after a customer-chosen password change (no password echoed). */
     public static function sendPasswordChanged(int $serviceId): void
     {

@@ -47,6 +47,7 @@ $_LANG['login_password'] = 'Palavra-passe';
 $_LANG['access_hint'] = 'Use estes dados no separador Consola, ou por SSH.';
 $_LANG['access_preparing'] = 'Estamos a preparar o seu acesso. Esta página mostrará o seu login em breve.';
 $_LANG['access_emailed'] = 'A sua password foi enviada por email. Use Alterar Password para definir uma nova.';
+$_LANG['access_manual'] = 'O seu VPS está online. Os seus dados de acesso são entregues em separado pela nossa equipa.';
 $_LANG['ssh_key'] = 'Chave pública SSH (opcional)';
 $_LANG['ssh_key_hint'] = 'Cole a sua chave pública SSH (por exemplo, do PuTTYgen) para ativar o acesso por SSH e SFTP. Recomendado para usar PuTTY/FileZilla.';
 
@@ -121,10 +122,12 @@ $_LANG['msg_dns_removed'] = 'Domínio de DNS secundário removido.';
 $_LANG['msg_no_image'] = 'Nenhuma imagem selecionada.';
 $_LANG['msg_os_not_available'] = 'Esse sistema operativo não está disponível para o seu plano.';
 $_LANG['msg_reinstall_started'] = 'Reinstalação iniciada. Os seus novos dados de acesso serão enviados por email assim que o VPS voltar.';
+$_LANG['msg_reinstall_started_windows'] = 'Reinstalação iniciada. O Windows demora algum tempo a instalar; a nossa equipa irá entregar os seus novos dados de acesso em separado.';
 $_LANG['msg_n8n_only'] = 'Esta ação só está disponível para serviços n8n.';
 
 // --- Change Password result messages (WHMCS native page, translated server-side) ---
 $_LANG['msg_pw_no_service'] = 'sem serviceName para este serviço.';
 $_LANG['msg_pw_no_password'] = 'nenhuma nova palavra-passe fornecida.';
 $_LANG['msg_pw_not_ready'] = 'este VPS ainda não está pronto para alterar a palavra-passe. Reinstale o SO na área de cliente primeiro.';
+$_LANG['msg_pw_windows'] = 'as alterações de palavra-passe em Windows são tratadas pela nossa equipa. Abra um ticket de suporte.';
 $_LANG['msg_pw_failed'] = 'não foi possível definir a palavra-passe (o VPS pode estar a arrancar). Tente novamente daqui a pouco.';

@@ -48,6 +48,7 @@ $_LANG['login_password'] = 'Password';
 $_LANG['access_hint'] = 'Use these in the Console tab, or over SSH.';
 $_LANG['access_preparing'] = 'We are preparing your access. This page will show your login shortly.';
 $_LANG['access_emailed'] = 'Your password was sent by email. Use Change Password to set a new one.';
+$_LANG['access_manual'] = 'Your VPS is online. Your login credentials are delivered separately by our team.';
 $_LANG['ssh_key'] = 'SSH public key (optional)';
 $_LANG['ssh_key_hint'] = 'Paste your SSH public key (e.g. from PuTTYgen) to enable key-based login over SSH and SFTP. Recommended for PuTTY/FileZilla access.';
 
@@ -122,10 +123,12 @@ $_LANG['msg_dns_removed'] = 'Secondary DNS domain removed.';
 $_LANG['msg_no_image'] = 'No image selected.';
 $_LANG['msg_os_not_available'] = 'That operating system is not available for your plan.';
 $_LANG['msg_reinstall_started'] = 'Reinstall started. Your new access details will be emailed once the VPS is back up.';
+$_LANG['msg_reinstall_started_windows'] = 'Reinstall started. Windows takes a while to install; our team will deliver your new login credentials separately.';
 $_LANG['msg_n8n_only'] = 'This action is only available for n8n services.';
 
 // --- Change Password result messages (WHMCS native page, translated server-side) ---
 $_LANG['msg_pw_no_service'] = 'no serviceName for this service.';
 $_LANG['msg_pw_no_password'] = 'no new password provided.';
 $_LANG['msg_pw_not_ready'] = 'this VPS is not ready for a password change yet. Reinstall the OS from the client area first.';
+$_LANG['msg_pw_windows'] = 'password changes for Windows are handled by our team. Please open a support ticket.';
 $_LANG['msg_pw_failed'] = 'could not set the password (the VPS may be starting). Try again shortly.';

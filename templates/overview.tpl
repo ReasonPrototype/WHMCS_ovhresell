@@ -65,6 +65,7 @@
             msg_no_image: "{$lang.msg_no_image|default:'No image selected.'|escape:'javascript'}",
             msg_os_not_available: "{$lang.msg_os_not_available|default:'That operating system is not available for your plan.'|escape:'javascript'}",
             msg_reinstall_started: "{$lang.msg_reinstall_started|default:'Reinstall started. Your new access details will be emailed once the VPS is back up.'|escape:'javascript'}",
+            msg_reinstall_started_windows: "{$lang.msg_reinstall_started_windows|default:'Reinstall started. Windows takes a while to install; our team will deliver your new login credentials separately.'|escape:'javascript'}",
             msg_n8n_only: "{$lang.msg_n8n_only|default:'This action is only available for n8n services.'|escape:'javascript'}"
         }
     };
@@ -114,6 +115,9 @@
             </tbody>
         </table>
         <p class="text-muted">{$lang.access_emailed|default:'Your password was sent by email. Use Change Password to set a new one.'}</p>
+    {elseif $access.state == 'manual'}
+        {* Terminal Windows state: credentials come from the team by hand, so never show the "preparing" spinner text. *}
+        <div class="alert alert-info">{$lang.access_manual|default:'Your VPS is online. Your login credentials are delivered separately by our team.'}</div>
     {elseif $access.state != '' && $access.state != 'failed'}
         <div class="alert alert-info">{$lang.access_preparing|default:'We are preparing your access. This page will show your login shortly.'}</div>
     {/if}

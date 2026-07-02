@@ -45,6 +45,18 @@ check('docker sellable', ConfigOptions::isSellableImage('Debian 12 - Docker'), t
 check('debian sellable', ConfigOptions::isSellableImage('Debian 12'), true);
 check('normalize os', ConfigOptions::normalizeOsName('  Debian   12 '), 'debian 12');
 
+// --- AccessBootstrap::needsManualAccess (SSH bootstrap vs manual delivery) ---
+// Windows images have no SSH daemon and no cloud-init default user, and a
+// rebuild-with-key would wipe the OVH-installed licensed Windows. They must be
+// routed to the manual-delivery path; every Linux image (plain or app) keeps
+// the automated SSH bootstrap.
+check('windows needs manual access', AccessBootstrap::needsManualAccess('Windows Server 2025 Datacenter Edition'), true);
+check('windows lowercase needs manual access', AccessBootstrap::needsManualAccess('windows-server-2022'), true);
+check('debian keeps ssh bootstrap', AccessBootstrap::needsManualAccess('Debian 12'), false);
+check('n8n keeps ssh bootstrap', AccessBootstrap::needsManualAccess('Debian 12 - n8n'), false);
+check('docker keeps ssh bootstrap', AccessBootstrap::needsManualAccess('Ubuntu 24.04 - Docker'), false);
+check('empty os keeps ssh bootstrap', AccessBootstrap::needsManualAccess(''), false);
+
 // --- Helper::lang: WHMCS 'portuguese' must map to European portuguese-pt, not fall to English ---
 check('lang portuguese -> pt', Helper::lang('portuguese')['power_on'], 'Ligar');
 check('lang portuguese-pt -> pt', Helper::lang('portuguese-pt')['power_on'], 'Ligar');

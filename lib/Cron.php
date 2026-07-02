@@ -86,12 +86,13 @@ class Cron
             }
         }
 
-        // Access bootstrap pass: drive freshly delivered VPS (any image, n8n
-        // included) through key install -> console password so the customer can
-        // log in. Only services explicitly marked at provisioning
-        // ('none'/'key_installed') are touched; pre-Phase-B services (NULL
-        // access_state) are never auto-bootstrapped, so an in-use VPS is never
-        // rebuilt.
+        // Access bootstrap pass: drive freshly delivered VPS through key
+        // install -> console password so the customer can log in (Linux images,
+        // n8n included); Windows images branch to the manual-delivery path
+        // inside bootstrapAccess. Only services explicitly marked at
+        // provisioning ('none'/'key_installed') are touched; pre-Phase-B
+        // services (NULL access_state) are never auto-bootstrapped, so an
+        // in-use VPS is never rebuilt.
         $pendingAccess = Capsule::table(Database::SERVERS)
             ->whereNotNull('service_name')
             ->whereIn('access_state', ['none', 'key_installed'])
@@ -186,11 +187,15 @@ class Cron
 
     /**
      * Drive one service through the access bootstrap state machine:
-     * none -> key_installed -> ready. Every image family (plain Linux, Docker,
-     * n8n) runs the same bootstrap, so every customer gets root/console access;
-     * the app on an application image survives because the rebuild reinstalls
-     * the SAME image. Every step is guarded so a re-run never re-installs a VPS
-     * already in use.
+     * none -> key_installed -> ready. Every Linux image family (plain distro,
+     * Docker, n8n) runs the same bootstrap, so every customer gets root/console
+     * access; the app on an application image survives because the rebuild
+     * reinstalls the SAME image. Every step is guarded so a re-run never
+     * re-installs a VPS already in use.
+     *
+     * Windows never enters this state machine: there is no SSH to bootstrap
+     * and the rebuild-with-key would wipe the OVH-installed licensed Windows.
+     * It takes the manual-delivery path instead (terminal state 'manual').
      *
      * @param array<string,mixed> $params
      * @param array<string,mixed> $row    mod_ovhvps_servers row (cast to array)
@@ -203,6 +208,16 @@ class Cron
         }
         $os = (string) ($row['os'] ?? '');
         $client = OvhClient::fromParams($params);
+
+        // Windows path: no key install (never rebuild what OVH just licensed
+        // and installed), no SSH password step. Wait for the IPv4, mirror it,
+        // park the service in the terminal 'manual' state, and hand credential
+        // delivery to the admin. Catches BOTH 'none' and 'key_installed', so a
+        // Windows row stuck from before this path existed is rescued too.
+        if (AccessBootstrap::needsManualAccess($os)) {
+            self::bootstrapManualAccess($serviceId, $client, $serviceName, $params, $os);
+            return;
+        }
 
         $state = (string) ($row['access_state'] ?? '');
 
@@ -239,6 +254,43 @@ class Cron
             }
             // else: stay key_installed; the next tick retries (VPS still booting).
         }
+    }
+
+    /**
+     * Windows delivery: once OVH reports the IPv4, mirror it into the WHMCS
+     * service, park the row in the terminal 'manual' access state (the cron
+     * only re-enters 'none'/'key_installed', so this stops the retry loop),
+     * notify the admins that credentials must be delivered by hand (OVH sent
+     * the Windows password to the OVH account owner, not the customer), and
+     * send the customer a credential-free Windows heads-up email.
+     *
+     * @param array<string,mixed> $params
+     */
+    private static function bootstrapManualAccess(int $serviceId, OvhClient $client, string $serviceName, array $params, string $os): void
+    {
+        $info = Actions::info($client, $serviceName);
+        $ip = (string) ($info['ip'] ?? '');
+        if ($ip === '') {
+            return; // OVH is still installing; the next tick retries.
+        }
+
+        try {
+            Capsule::table('tblhosting')->where('id', $serviceId)->update(['dedicatedip' => $ip]);
+        } catch (\Throwable $e) {
+            Helper::log('cron:access', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
+        }
+
+        // Terminal state FIRST: if an email fails it is logged (send() never
+        // throws), but the service must never loop back into the SSH bootstrap.
+        Database::upsertServer($serviceId, [
+            'ip_main' => $ip,
+            'access_state' => 'manual',
+        ]);
+
+        $domain = (string) ($params['domain'] ?? '');
+        AccessMail::sendAdminManualAccess($serviceId, $domain, $os, $ip);
+        AccessMail::sendWindowsReady($serviceId);
+        Helper::log('cron:access', ['service_id' => $serviceId], ['manual' => true, 'os' => $os, 'ip' => $ip], true, $serviceId);
     }
 
     /**

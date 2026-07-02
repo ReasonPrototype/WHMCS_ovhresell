@@ -310,9 +310,6 @@ class Actions
             return self::err('msg_os_not_available');
         }
 
-        // Re-enter the access bootstrap so the customer gets fresh, emailed access
-        // details exactly like a new order: rebuild with OUR management key (no OVH
-        // password email), record it, and let the cron set + email the password.
         $osName = '';
         foreach ($images as $img) {
             if ((string) $img['id'] === $imageId) {
@@ -321,6 +318,30 @@ class Actions
             }
         }
         $serviceId = (int) ($params['serviceid'] ?? 0);
+
+        // Windows (only offered when the service was ordered with Windows): an
+        // SSH key is useless and suppressing the OVH password email would
+        // discard the only credential source. Rebuild key-less so OVH mails
+        // the password to the OVH account owner (the reseller), clear any old
+        // Linux key material, and re-enter the bootstrap at 'none' so the cron
+        // routes it through the manual-delivery path (IP mirror + admin
+        // notification + credential-free customer email).
+        if (AccessBootstrap::needsManualAccess($osName)) {
+            AccessBootstrap::reinstallImage($client, $serviceName, $imageId);
+            Database::upsertServer($serviceId, [
+                'os' => $osName,
+                'ssh_pubkey' => null,
+                'ssh_privkey_enc' => null,
+                'root_user' => null,
+                'root_pass_enc' => null,
+                'access_state' => 'none',
+            ]);
+            return self::processing('msg_reinstall_started_windows');
+        }
+
+        // Re-enter the access bootstrap so the customer gets fresh, emailed access
+        // details exactly like a new order: rebuild with OUR management key (no OVH
+        // password email), record it, and let the cron set + email the password.
         $pair = AccessBootstrap::generateKeyPair();
         AccessBootstrap::installKey($client, $serviceName, $imageId, $pair['public']);
         Database::upsertServer($serviceId, [

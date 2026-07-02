@@ -15,9 +15,12 @@ use phpseclib3\Net\SSH2;
  * set a known password for the OS default user over SSH (see setPassword) so the
  * customer can log in through the browser console with no SSH tooling.
  *
- * Every image family uses this, including the free application images (Docker,
- * n8n): the rebuild-with-key reinstalls the SAME image, so the app survives and
- * the customer additionally gets root/console access.
+ * Every Linux image family uses this, including the free application images
+ * (Docker, n8n): the rebuild-with-key reinstalls the SAME image, so the app
+ * survives and the customer additionally gets root/console access. Windows is
+ * the exception (see needsManualAccess): no SSH, no cloud-init default user,
+ * and a rebuild would wipe the OVH-installed licensed Windows, so credentials
+ * are delivered manually by the admin instead.
  */
 class AccessBootstrap
 {
@@ -45,6 +48,19 @@ class AccessBootstrap
     }
 
     /**
+     * Whether an installed image must skip the SSH bootstrap entirely and go
+     * through manual credential delivery instead. True for Windows: there is
+     * no SSH daemon and no cloud-init default user to log in as, and the
+     * rebuild-with-key would wipe the OVH-installed licensed Windows. The
+     * cron routes these to a terminal 'manual' access state and notifies the
+     * admin. Pure: no WHMCS/DB dependency.
+     */
+    public static function needsManualAccess(string $os): bool
+    {
+        return ConfigOptions::imageFamily($os) === 'windows';
+    }
+
+    /**
      * Generate a fresh per-VPS ed25519 keypair in OpenSSH format.
      *
      * @return array{private:string, public:string}
@@ -68,6 +84,19 @@ class AccessBootstrap
             'imageId' => $imageId,
             'publicSshKey' => $publicKey,
             'doNotSendPassword' => true,
+        ]);
+    }
+
+    /**
+     * Reinstall the VPS with an image that takes no SSH key (Windows), letting
+     * OVH email the generated password to the OVH account owner (the reseller),
+     * who then delivers it to the customer by hand. DESTRUCTIVE: call only on
+     * an explicit customer-requested reinstall.
+     */
+    public static function reinstallImage(OvhClient $client, string $serviceName, string $imageId): void
+    {
+        $client->post('/vps/' . $serviceName . '/rebuild', [
+            'imageId' => $imageId,
         ]);
     }
 

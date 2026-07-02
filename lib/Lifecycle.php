@@ -188,6 +188,13 @@ class Lifecycle
         }
 
         $server = Database::getServer($serviceId) ?? [];
+
+        // Windows has no SSH path and its credentials are delivered manually;
+        // never point the customer at a reinstall (it would wipe their Windows).
+        if (AccessBootstrap::needsManualAccess((string) ($server['os'] ?? ''))) {
+            return 'Error: ' . ($lang['msg_pw_windows'] ?? 'password changes for Windows are handled by our team. Please open a support ticket.');
+        }
+
         $priv = Helper::decrypt((string) ($server['ssh_privkey_enc'] ?? ''));
         if ($priv === '') {
             return 'Error: ' . ($lang['msg_pw_not_ready'] ?? 'this VPS is not ready for a password change yet. Reinstall the OS from the client area first.');

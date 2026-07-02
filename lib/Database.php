@@ -29,6 +29,9 @@ class Database
     /** Custom WHMCS email template for a customer-chosen password change. */
     public const EMAIL_TEMPLATE_PWCHANGED = 'OVH VPS Password Changed';
 
+    /** Credential-free template sent instead of the access email when the image is Windows. */
+    public const EMAIL_TEMPLATE_WINDOWS = 'OVH VPS Windows Ready';
+
     /** Custom WHMCS email template sent when a model upgrade has completed. */
     public const EMAIL_TEMPLATE_UPGRADE = 'OVH VPS Upgrade Complete';
 
@@ -330,6 +333,27 @@ class Database
                     . 'Reinstalar a imagem n8n apaga o servidor e repõe a conta de proprietário. '
                     . 'Se ativou HTTPS ou um reverse proxy no servidor, use esse endereço.</p>'
                     . '<p>Os seus dados de acesso root foram enviados num email separado.</p>'
+                    . '{$signature}',
+            ],
+            [
+                'name' => self::EMAIL_TEMPLATE_WINDOWS,
+                'subjectEn' => 'Your Windows VPS is ready',
+                'bodyEn' => '<p>Hello {$client_name},</p>'
+                    . '<p>Your VPS <strong>{$service_domain}</strong> was installed with Windows and is now online.</p>'
+                    . '<ul>'
+                    . '<li>IP: {$service_dedicated_ip}</li>'
+                    . '</ul>'
+                    . '<p>For security reasons your login credentials are delivered separately by our team. You will receive them shortly.</p>'
+                    . '<p>Once you have your credentials, connect with Remote Desktop (RDP, port 3389).</p>'
+                    . '{$signature}',
+                'subjectPt' => 'O seu VPS Windows está pronto',
+                'bodyPt' => '<p>Olá {$client_name},</p>'
+                    . '<p>O seu VPS <strong>{$service_domain}</strong> foi instalado com Windows e está online.</p>'
+                    . '<ul>'
+                    . '<li>IP: {$service_dedicated_ip}</li>'
+                    . '</ul>'
+                    . '<p>Por razões de segurança, os seus dados de acesso são entregues em separado pela nossa equipa. Irá recebê-los em breve.</p>'
+                    . '<p>Assim que tiver os seus dados de acesso, ligue-se por Ambiente de Trabalho Remoto (RDP, porta 3389).</p>'
                     . '{$signature}',
             ],
             [
