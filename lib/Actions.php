@@ -32,8 +32,12 @@ class Actions
                 case 'info':
                     return self::ok('', self::info($client, $serviceName));
                 case 'n8n_status':
-                    // vps-n8n ships n8n pre-installed in the OVH OS image; show
-                    // the access endpoint (n8n listens on port 5678 by default).
+                    // The n8n image ships the editor on port 5678; expose the
+                    // endpoint only when the installed image is n8n (mirrors
+                    // the conditional client-area tab).
+                    if (!self::isN8nService($params)) {
+                        return self::err('msg_n8n_only');
+                    }
                     $vps = self::info($client, $serviceName);
                     $ip = $vps['ip'] ?? '';
                     return self::ok('', [
@@ -52,8 +56,6 @@ class Actions
                     return self::ok('', self::images($client, $serviceName, $params));
                 case 'reinstall':
                     return self::reinstall($client, $serviceName, $params, $input);
-                case 'reinstall_n8n':
-                    return self::reinstallN8n($client, $serviceName, $params);
                 case 'snapshot_list':
                     return self::ok('', self::snapshotInfo($client, $serviceName));
                 case 'snapshot_create':
@@ -236,13 +238,14 @@ class Actions
 
     /**
      * The images a customer may reinstall to: the OS options the plan sells
-     * (mod_ovhvps_option_map vps_os values) limited to the customer's entitled
-     * family. A managed family (paid Windows/cPanel/Plesk, or an application image
-     * like Docker/n8n) is offered only when the VPS was ordered with that same
-     * family, so a customer can never reinstall into a license OVH would bill us
-     * for, nor into an application image a plain VPS should not expose. Falls back
-     * to the family filter alone when the plan OS names do not line up with the
-     * image names, so reinstall always works but never leaks a managed image.
+     * (mod_ovhvps_option_map vps_os values) filtered by the family policy.
+     * Excluded panel families (cPanel/Plesk) are never offered; a locked family
+     * (Windows, paid per order) only when the VPS was ordered with it, so a
+     * reinstall can never create a license OVH bills us for; plain distros and
+     * the free app images (Docker/n8n) are open to every service, which is what
+     * lets any customer reinstall into or out of n8n. Falls back to the family
+     * filter alone when the plan OS names do not line up with the image names,
+     * so reinstall always works but never leaks an excluded or locked image.
      *
      * @param array<string, mixed> $params
      * @return list<array{id:string,name:string}>
@@ -253,14 +256,19 @@ class Actions
 
         $serviceId = (int) ($params['serviceid'] ?? 0);
         $server = $serviceId > 0 ? (Database::getServer($serviceId) ?? []) : [];
-        $currentFamily = ConfigOptions::managedImageFamily((string) ($server['os'] ?? ''));
+        $currentFamily = ConfigOptions::imageFamily((string) ($server['os'] ?? ''));
 
-        // Family guard (every path): plain distributions are always allowed; a
-        // managed family (paid Windows/cPanel/Plesk or an app image Docker/n8n) is
-        // allowed only when the VPS was ordered with that same family.
+        // Family policy (every path): excluded families never; locked families
+        // only when the VPS was ordered with that family; everything else always.
         $familyOk = static function (array $img) use ($currentFamily): bool {
-            $fam = ConfigOptions::managedImageFamily((string) ($img['name'] ?? ''));
-            return $fam === '' || $fam === $currentFamily;
+            $fam = ConfigOptions::imageFamily((string) ($img['name'] ?? ''));
+            if (in_array($fam, ConfigOptions::EXCLUDED_FAMILIES, true)) {
+                return false;
+            }
+            if (in_array($fam, ConfigOptions::LOCKED_FAMILIES, true)) {
+                return $fam === $currentFamily;
+            }
+            return true;
         };
 
         // Faithful list: only images whose name the plan offers as an OS option.
@@ -277,7 +285,7 @@ class Actions
             }
         }
 
-        // Fallback: family filter only (still never leaks a managed image).
+        // Fallback: family filter only (never leaks an excluded or locked image).
         return array_values(array_filter($all, $familyOk));
     }
 
@@ -289,11 +297,6 @@ class Actions
      */
     private static function reinstall(OvhClient $client, string $serviceName, array $params, array $input): array
     {
-        // n8n products do not expose the full OS reinstall: switching to a plain
-        // distro would destroy the n8n appliance. They use 'reinstall_n8n'.
-        if (self::isN8nService($params)) {
-            return self::err('msg_use_reinstall_n8n');
-        }
         $imageId = (string) ($input['image_id'] ?? '');
         if ($imageId === '') {
             return self::err('msg_no_image');
@@ -332,47 +335,11 @@ class Actions
     }
 
     /**
-     * Wipe-and-reinstall an n8n service to a fresh n8n image: the sanctioned
-     * "start from zero" path for an n8n product, which does not expose the full OS
-     * reinstall. The target is always an n8n image (resolved from the ordered OS),
-     * so the customer can never leave the n8n family here. n8n is web-only, so no
-     * password email is sent (the owner account is recreated on the first visit).
-     *
-     * @param array<string, mixed> $params
-     * @return array{status:string, message:string, data:mixed}
-     */
-    private static function reinstallN8n(OvhClient $client, string $serviceName, array $params): array
-    {
-        if (!self::isN8nService($params)) {
-            return self::err('msg_n8n_only');
-        }
-        // Reinstall the product's Default OS (the n8n image the product sells), so
-        // the reset is independent of any OS configurable option: the admin sets it
-        // once on the product and the button always rebuilds to it. Fall back to the
-        // OS the VPS was ordered with when no Default OS is configured.
-        $cfg = Helper::cfg($params);
-        $serviceId = (int) ($params['serviceid'] ?? 0);
-        $server = $serviceId > 0 ? (Database::getServer($serviceId) ?? []) : [];
-        $wantedOs = trim($cfg['default_os']) !== ''
-            ? trim($cfg['default_os'])
-            : (string) ($server['os'] ?? '');
-        $imageId = ConfigOptions::pickImageId(self::availableImages($client, $serviceName), $wantedOs);
-        if ($imageId === '') {
-            return self::err('msg_no_n8n_image');
-        }
-        $client->post('/vps/' . $serviceName . '/rebuild', [
-            'imageId' => $imageId,
-            'doNotSendPassword' => true,
-        ]);
-        // n8n sits at access_state='web' (the cron bootstrap skips it), so re-send
-        // the URL email here. The IP is unchanged, so the URL is the same.
-        AccessMail::sendN8nReady((int) ($params['serviceid'] ?? 0));
-        return self::processing('msg_reinstall_n8n_started');
-    }
-
-    /**
-     * Whether the service is an n8n product, decided (as everywhere in the module)
-     * by the ordered OS image name containing "n8n".
+     * Whether the CURRENTLY INSTALLED image is n8n, decided (as everywhere in
+     * the module) by the recorded OS image name containing "n8n". The recorded
+     * os is refreshed on reinstall, so this follows the image, not the order.
+     * Gates the additive n8n tab endpoint and the n8n URL email - never a
+     * feature lock.
      *
      * @param array<string, mixed> $params
      */

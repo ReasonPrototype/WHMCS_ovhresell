@@ -24,17 +24,25 @@ check('ubuntu user', AccessBootstrap::defaultUser('Ubuntu 24.04'), 'ubuntu');
 check('n8n image keeps debian', AccessBootstrap::defaultUser('Debian 12 - n8n'), 'debian');
 check('unknown defaults to debian', AccessBootstrap::defaultUser('SomeOS 1.0'), 'debian');
 
-// --- ConfigOptions::managedImageFamily / normalizeOsName ---
-// Paid families (a license OVH bills us for) gate the reinstall list...
-check('windows family', ConfigOptions::managedImageFamily('Windows Server 2025'), 'windows');
-check('cpanel family', ConfigOptions::managedImageFamily('Debian 12 - cPanel'), 'cpanel');
-check('plesk family', ConfigOptions::managedImageFamily('Plesk on Debian 12'), 'plesk');
-// ...as do the application images we never want loose on a plain VPS.
-check('docker family', ConfigOptions::managedImageFamily('Debian 12 - Docker'), 'docker');
-check('n8n family', ConfigOptions::managedImageFamily('Debian 12 - n8n'), 'n8n');
-// A plain distribution is free and generic: always offered (family '').
-check('plain debian family', ConfigOptions::managedImageFamily('Debian 12'), '');
-check('plain ubuntu family', ConfigOptions::managedImageFamily('Ubuntu 24.04'), '');
+// --- ConfigOptions::imageFamily / isSellableImage / normalizeOsName ---
+// The family token only IDENTIFIES a special image; the POLICY lives in the
+// EXCLUDED_FAMILIES / LOCKED_FAMILIES constants and their consumers.
+check('windows family', ConfigOptions::imageFamily('Windows Server 2025'), 'windows');
+check('cpanel family', ConfigOptions::imageFamily('Debian 12 - cPanel'), 'cpanel');
+check('plesk family', ConfigOptions::imageFamily('Plesk on Debian 12'), 'plesk');
+check('docker family', ConfigOptions::imageFamily('Debian 12 - Docker'), 'docker');
+check('n8n family', ConfigOptions::imageFamily('Debian 12 - n8n'), 'n8n');
+check('plain debian family', ConfigOptions::imageFamily('Debian 12'), '');
+check('plain ubuntu family', ConfigOptions::imageFamily('Ubuntu 24.04'), '');
+// Sellable = anything not carrying a panel license OVH would bill us for.
+// Windows stays sellable (its paid license is attached to the order); the
+// free app images (Docker/n8n) are ordinary Linux choices.
+check('cpanel not sellable', ConfigOptions::isSellableImage('Debian 12 - cPanel'), false);
+check('plesk not sellable', ConfigOptions::isSellableImage('Plesk on Debian 12'), false);
+check('windows sellable', ConfigOptions::isSellableImage('Windows Server 2025'), true);
+check('n8n sellable', ConfigOptions::isSellableImage('Debian 12 - n8n'), true);
+check('docker sellable', ConfigOptions::isSellableImage('Debian 12 - Docker'), true);
+check('debian sellable', ConfigOptions::isSellableImage('Debian 12'), true);
 check('normalize os', ConfigOptions::normalizeOsName('  Debian   12 '), 'debian 12');
 
 // --- Helper::lang: WHMCS 'portuguese' must map to European portuguese-pt, not fall to English ---

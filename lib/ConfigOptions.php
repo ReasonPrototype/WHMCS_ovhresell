@@ -67,24 +67,32 @@ class ConfigOptions
     }
 
     /**
-     * The "managed" image family of an OS image name: a family a customer may
-     * reinstall to only when their VPS was ordered with that same family. Covers
-     * both paid images (a license OVH bills us for: 'windows', 'cpanel', 'plesk')
-     * and the application images we never want loose on a plain VPS ('docker',
-     * 'n8n'). Returns '' for a plain distribution (Debian, Ubuntu, Rocky, ...),
-     * which is always offered because it is free and generic.
-     *
-     * This is the single gate for the reinstall OS list:
-     *  - a plain VPS (ordered-OS family '') sees only plain distributions;
-     *  - a Windows VPS additionally sees ANY Windows image, because OVH licenses
-     *    Windows by family (one SPLA license), not per version;
-     *  - an n8n VPS additionally sees n8n images.
-     *
-     * To exclude another OVH application image in the future, add its token to
-     * the list below (each token must be distinctive enough not to collide with a
-     * plain distro name). Pure: no WHMCS/DB dependency.
+     * Families we never sell or reinstall: OS images bundling a control-panel
+     * license (cPanel/Plesk) that OVH would bill us for and that we do not
+     * resell. Checked wherever images become customer-facing choices (the
+     * generated Operating System dropdown and the reinstall list).
      */
-    public static function managedImageFamily(string $image): string
+    public const EXCLUDED_FAMILIES = ['cpanel', 'plesk'];
+
+    /**
+     * Families locked to the ordered OS: Windows is sellable (its paid license
+     * is attached to the order), but a service may only REINSTALL Windows when
+     * it was ordered with Windows, so a reinstall can never create a license
+     * OVH bills us for outside an order.
+     */
+    public const LOCKED_FAMILIES = ['windows'];
+
+    /**
+     * The special image family of an OS image name, or '' for a plain
+     * distribution (Debian, Ubuntu, Rocky, ...). The token only IDENTIFIES the
+     * family; what a family is allowed to do lives in EXCLUDED_FAMILIES /
+     * LOCKED_FAMILIES and their consumers. The free application images
+     * (Docker, n8n) are ordinary sellable Linux images; their token exists so
+     * the n8n client-area tab and the n8n email can key off the installed
+     * image. Each token must be distinctive enough not to collide with a plain
+     * distro name. Pure: no WHMCS/DB dependency.
+     */
+    public static function imageFamily(string $image): string
     {
         $image = strtolower($image);
         foreach (['windows', 'cpanel', 'plesk', 'docker', 'n8n'] as $family) {
@@ -95,39 +103,21 @@ class ConfigOptions
         return '';
     }
 
+    /**
+     * Whether an OS image may be offered to customers at all (order dropdown
+     * and reinstall list). Only the excluded panel families are refused; the
+     * Windows order-lock is a reinstall-time rule, not a sell-time rule.
+     * Pure: no WHMCS/DB dependency.
+     */
+    public static function isSellableImage(string $image): bool
+    {
+        return !in_array(self::imageFamily($image), self::EXCLUDED_FAMILIES, true);
+    }
+
     /** Normalise an OS name for matching (lowercase, collapse whitespace). Pure. */
     public static function normalizeOsName(string $name): string
     {
         return (string) preg_replace('/\s+/', ' ', strtolower(trim($name)));
-    }
-
-    /**
-     * Pick the image id to (re)install for a wanted OS from a list of available
-     * images. Prefers an exact (normalised) name match with $wantedOs; otherwise
-     * the first image in the same managed family (e.g. any n8n image when the
-     * service is n8n, so a slightly different image name still resolves). Returns
-     * '' when nothing matches. Used by the n8n "reinstall from scratch" button to
-     * rebuild to a fresh n8n image without ever leaving the n8n family. Pure.
-     *
-     * @param list<array{id:string,name:string}> $images
-     */
-    public static function pickImageId(array $images, string $wantedOs): string
-    {
-        $want = self::normalizeOsName($wantedOs);
-        foreach ($images as $img) {
-            if (self::normalizeOsName((string) ($img['name'] ?? '')) === $want && $want !== '') {
-                return (string) ($img['id'] ?? '');
-            }
-        }
-        $family = self::managedImageFamily($wantedOs);
-        if ($family !== '') {
-            foreach ($images as $img) {
-                if (self::managedImageFamily((string) ($img['name'] ?? '')) === $family) {
-                    return (string) ($img['id'] ?? '');
-                }
-            }
-        }
-        return '';
     }
 
     /**
@@ -303,6 +293,8 @@ class ConfigOptions
         Helper::init();
 
         $os = Catalog::getOs($endpoint, $subsidiary, $planCode);
+        // Never offer an image whose family we refuse to sell (cPanel/Plesk).
+        $os = array_values(array_filter($os, [self::class, 'isSellableImage']));
         $datacenters = Catalog::getDatacenters($endpoint, $subsidiary, $planCode);
         $options = Catalog::getOptions($endpoint, $subsidiary, $planCode);
 
