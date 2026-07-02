@@ -20,10 +20,10 @@ class Database
     public const AVAILABILITY = 'mod_ovhvps_availability';
     public const META = 'mod_ovhvps_meta';
 
-    /** Custom WHMCS email template the cron sends when a plain VPS is ready. */
+    /** Custom WHMCS email template the cron sends when a VPS is ready (any image). */
     public const EMAIL_TEMPLATE = 'OVH VPS Access Ready';
 
-    /** Custom WHMCS email template the cron sends when an n8n server is ready. */
+    /** Additional template sent right after the access email when the installed image is n8n. */
     public const EMAIL_TEMPLATE_N8N = 'OVH n8n Access Ready';
 
     /** Custom WHMCS email template for a customer-chosen password change. */
@@ -34,7 +34,7 @@ class Database
 
     /** Bumped whenever the module-managed template bodies change, to force the
      *  new version onto existing installs once (see ensureEmailTemplate). */
-    public const EMAIL_TPL_REV = '3';
+    public const EMAIL_TPL_REV = '4';
 
     /**
      * Create any missing tables. Idempotent; safe to call on every request.
@@ -47,7 +47,6 @@ class Database
             $schema->create(self::SERVERS, static function ($t): void {
                 $t->increments('id');
                 $t->integer('service_id')->unsigned()->unique();
-                $t->string('product_type', 32)->default('vps');
                 $t->string('service_name')->nullable();
                 $t->string('order_id', 64)->nullable();
                 $t->string('endpoint', 32)->nullable();
@@ -59,9 +58,6 @@ class Database
                 $t->string('ip_main', 64)->nullable();
                 $t->text('model_json')->nullable();
                 $t->string('display_name')->nullable();
-                $t->string('n8n_url')->nullable();
-                $t->string('n8n_user')->nullable();
-                $t->string('n8n_state', 32)->nullable();
                 $t->boolean('delete_at_expiration')->default(false);
                 $t->timestamps();
             });
@@ -311,25 +307,29 @@ class Database
             ],
             [
                 'name' => self::EMAIL_TEMPLATE_N8N,
-                'subjectEn' => 'Your n8n server is ready',
+                'subjectEn' => 'Your n8n is ready',
                 'bodyEn' => '<p>Hello {$client_name},</p>'
-                    . '<p>Your n8n server is ready.</p>'
+                    . '<p>Your VPS was installed with the n8n image and the editor is ready.</p>'
                     . '<ul>'
                     . '<li>n8n URL: <a href="http://{$service_dedicated_ip}:5678">http://{$service_dedicated_ip}:5678</a></li>'
                     . '<li>Server IP: {$service_dedicated_ip}</li>'
                     . '</ul>'
                     . '<p>Open the URL in your browser and create your owner account on the first visit. '
-                    . 'If you enabled HTTPS or a reverse proxy on the image, use that address instead.</p>'
+                    . 'Reinstalling the n8n image wipes the server and resets the owner account. '
+                    . 'If you enabled HTTPS or a reverse proxy on the server, use that address instead.</p>'
+                    . '<p>Your root access details were sent in a separate email.</p>'
                     . '{$signature}',
-                'subjectPt' => 'O seu servidor n8n está pronto',
+                'subjectPt' => 'O seu n8n está pronto',
                 'bodyPt' => '<p>Olá {$client_name},</p>'
-                    . '<p>O seu servidor n8n está pronto.</p>'
+                    . '<p>O seu VPS foi instalado com a imagem n8n e o editor está pronto.</p>'
                     . '<ul>'
                     . '<li>URL do n8n: <a href="http://{$service_dedicated_ip}:5678">http://{$service_dedicated_ip}:5678</a></li>'
                     . '<li>IP do servidor: {$service_dedicated_ip}</li>'
                     . '</ul>'
                     . '<p>Abra o URL no browser e crie a sua conta de proprietário na primeira visita. '
-                    . 'Se ativou HTTPS ou um reverse proxy na imagem, use esse endereço.</p>'
+                    . 'Reinstalar a imagem n8n apaga o servidor e repõe a conta de proprietário. '
+                    . 'Se ativou HTTPS ou um reverse proxy no servidor, use esse endereço.</p>'
+                    . '<p>Os seus dados de acesso root foram enviados num email separado.</p>'
                     . '{$signature}',
             ],
             [
