@@ -301,6 +301,18 @@ class ConfigOptions
         $datacenters = Catalog::getDatacenters($endpoint, $subsidiary, $planCode);
         $options = Catalog::getOptions($endpoint, $subsidiary, $planCode);
 
+        // Fail safe: with an empty OS or Datacenter list (unsynced catalog, bad
+        // plan code, plan retired by OVH) a sync would leave the PREVIOUS
+        // generation's sub-options orderable but with no option_map rows, so a
+        // customer's choice would be silently dropped at order time. Refuse
+        // instead of desyncing.
+        if ($os === [] || $datacenters === []) {
+            throw new \RuntimeException(
+                'The cached OVH catalog has no OS images or datacenters for plan "'
+                . $planCode . '". Run Sync Catalog (or check the VPS Plan Code) and try again.'
+            );
+        }
+
         // The `os` addon family is the mandatory OS license line (free Linux vs paid
         // Windows). It is not offered as a dropdown; instead each OS image below carries
         // its implied license so the customer cannot mismatch the image and the license.

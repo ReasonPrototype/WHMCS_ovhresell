@@ -239,7 +239,7 @@
                     "<p class='text-muted'>" + cfg.lang.n8n_port_note + "</p>"
                 );
             } else {
-                $("#ovhvps_n8n_panel").text((res && res.message) || cfg.lang.n8n_provisioning);
+                $("#ovhvps_n8n_panel").text((res && tmsg(res.message)) || cfg.lang.n8n_provisioning);
             }
         });
     }

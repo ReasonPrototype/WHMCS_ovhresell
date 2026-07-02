@@ -235,7 +235,7 @@ class Database
 
     /**
      * Create the access-ready email template once (idempotent): an English base
-     * plus a Portuguese variant. The cron sends it when a plain VPS is ready.
+     * plus a Portuguese variant. The cron sends it when a VPS is ready (any image).
      *
      * LIVE-VERIFY: confirm the tblemailtemplates columns and multi-language
      * behaviour on the target WHMCS version. If the 'portuguese' row is not

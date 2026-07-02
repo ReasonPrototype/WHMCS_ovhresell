@@ -8,8 +8,8 @@ namespace OvhVps;
  *
  *   ['status' => 'OK'|'Error'|'Processing', 'message' => string, 'data' => mixed]
  *
- * F5 covers power, console, OS reinstall, snapshots and rescue. F7 extends the
- * switch with backups, Veeam, disks, IPs/reverse DNS, Backup FTP, secondary DNS,
+ * F5 covers power, console, OS reinstall and snapshots. F7 extends the switch
+ * with backups, Veeam, disks, IPs/reverse DNS, Backup FTP, secondary DNS,
  * upgrade and graphs.
  */
 class Actions

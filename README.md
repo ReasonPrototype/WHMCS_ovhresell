@@ -59,7 +59,7 @@ Plesk images are never offered (their licenses would be billed to you).
 | **Suspend / unsuspend** | Maps to OVH `stop` / `start`. |
 | **Automatic cancellation** | On cancellation/termination, schedules OVH deletion at the end of the paid term (`renew.deleteAtExpiration`, no email token) so OVH stops billing you, and stops the VPS immediately. |
 | **Option & model upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`). It also upgrades the VPS to a bigger model in place (`ChangePackage` to a larger plan, via OVH `order/upgrade`). Both are add-only, auto-paid, and gated (orderability/`availableUpgrade` + a dry-run before every charge). |
-| **Customer control panel** | Power, VNC console, OS reinstall, snapshots, automated backups, Veeam, additional disks, IPs + reverse DNS, secondary DNS. Every service gets the full panel and root access, whatever the installed image. |
+| **Customer control panel** | Power, VNC console, OS reinstall, snapshots, automated backups, Veeam, additional disks, IPs + reverse DNS, secondary DNS. Every service gets the full panel; Linux images (Docker and n8n included) also get the automated root-access bootstrap and access email. |
 | **n8n tab** | When the installed OS is an n8n image, the client area shows an **n8n** tab with the editor URL (port 5678 by default) IN ADDITION to all the normal tabs. |
 | **Admin service panel** | All client actions plus admin-only controls: sync catalog, generate options, retry provisioning, set `serviceName` manually, confirm immediate termination, toggle delete-at-expiration, and view OVH cost (your margin). |
 | **Audit trail** | Every OVH API call and order step is logged to the WHMCS module log and to the module's own task-log table. Each order records the OVH dry-run cost for margin auditing. |
@@ -367,6 +367,10 @@ disappears; reinstall to n8n and it comes back.
 and receives the **"OVH VPS Access Ready"** email (root user + password). When the installed
 image is n8n, the customer additionally receives **"OVH n8n Access Ready"** with the editor
 URL (the owner account is created on the first browser visit; reinstalling resets it).
+
+> ⚠️ The SSH access bootstrap only works on **Linux** images. If you sell Windows, plan to
+> deliver the Windows credentials to the customer manually (the panel still works; the
+> automated password/email flow does not apply to Windows).
 
 ### Upgrading from the split VPS/VPS-n8n model
 
