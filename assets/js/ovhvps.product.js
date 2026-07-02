@@ -69,7 +69,7 @@
 
     $(document).on("click", "#ovhvps_gen_btn", function (e) {
         e.preventDefault();
-        if (cfg.hasOptions && !window.confirm("Options already exist for this product. This recreates them and resets their prices to 0. Continue?")) {
+        if (cfg.hasOptions && !window.confirm("Options already exist for this product. This syncs them with the OVH catalog: existing options keep their prices, new ones start at price 0, and options no longer offered are removed. Continue?")) {
             return;
         }
         status("work", "Syncing catalog and generating options…");
@@ -85,7 +85,7 @@
                 var d = res.data || {};
                 status("ok", (res.message || "Done.") + " (OS: " + (d.os || 0) +
                     ", Datacenters: " + (d.datacenters || 0) + ", Extras: " + (d.options || 0) +
-                    "). Refresh the page and set the prices on the extras.");
+                    "). Refresh the page and set prices on any NEW extras (existing prices were kept).");
                 cfg.hasOptions = true;
             })
             .fail(function () { status("err", "Network error."); });

@@ -281,10 +281,13 @@ class ConfigOptions
 
     /**
      * Build WHMCS configurable options for a product from the cached catalog and
-     * record the OVH mapping. Idempotent per product (re-runs replace the group).
+     * record the OVH mapping. Idempotent per product: re-runs SYNC the existing
+     * group in place, so sub-options that already exist KEEP their configured
+     * prices, new ones are added at price 0, and ones no longer offered (e.g.
+     * excluded families) are removed together with their pricing rows.
      *
      * NOTE: writes WHMCS core tables (tblproductconfig*). Verify against a live
-     * WHMCS install; prices default to 0 (admin sets the markup afterwards).
+     * WHMCS install.
      *
      * @return array{group_id:int, os:int, datacenters:int, options:int}
      */
@@ -309,20 +312,25 @@ class ConfigOptions
 
         $groupName = 'OVH VPS #' . $pid;
 
-        // Reset any previous generation for this product.
+        // Upsert: sync an existing group in place so configured prices survive
+        // a re-generation; only brand-new sub-options start at price 0.
         $existing = Capsule::table('tblproductconfiggroups')->where('name', $groupName)->first();
         if ($existing) {
-            self::deleteGroup((int) $existing->id);
+            $gid = (int) $existing->id;
+            if (!Capsule::table('tblproductconfiglinks')->where('gid', $gid)->where('pid', $pid)->exists()) {
+                Capsule::table('tblproductconfiglinks')->insert(['gid' => $gid, 'pid' => $pid]);
+            }
+        } else {
+            $gid = (int) Capsule::table('tblproductconfiggroups')->insertGetId([
+                'name' => $groupName,
+                'description' => 'Auto-generated from the OVH catalog for product #' . $pid,
+            ]);
+            Capsule::table('tblproductconfiglinks')->insert(['gid' => $gid, 'pid' => $pid]);
         }
+        // The OVH mapping carries no pricing: rebuild it deterministically.
         Capsule::table(Database::OPTION_MAP)->where('pid', $pid)->delete();
 
-        $gid = (int) Capsule::table('tblproductconfiggroups')->insertGetId([
-            'name' => $groupName,
-            'description' => 'Auto-generated from the OVH catalog for product #' . $pid,
-        ]);
-        Capsule::table('tblproductconfiglinks')->insert(['gid' => $gid, 'pid' => $pid]);
-
-        $osCount = self::createDropdown($pid, $gid, self::GROUP_OS, array_map(
+        $osCount = self::syncDropdown($pid, $gid, self::GROUP_OS, array_map(
             static fn (string $v): array => [
                 'label' => $v,
                 'kind' => 'config',
@@ -337,11 +345,12 @@ class ConfigOptions
         // while ovh_value stays the raw OVH datacenter code. All consumers (map(),
         // cartSelection(), cartStockData(), applyDatacenterStock()) resolve via the
         // option_map's ovh_value, so the order and the stock UX keep working unchanged.
-        $dcCount = self::createDropdown($pid, $gid, self::GROUP_DATACENTER, array_map(
+        $dcCount = self::syncDropdown($pid, $gid, self::GROUP_DATACENTER, array_map(
             static fn (string $v): array => ['label' => Datacenters::label($v), 'kind' => 'config', 'ovh_label' => 'vps_datacenter', 'ovh_value' => $v],
             $datacenters
         ));
 
+        $desired = [self::GROUP_OS, self::GROUP_DATACENTER];
         $optCount = 0;
         foreach (self::groupOptionsByFamily($options) as $family => $addons) {
             if ($family === 'os') {
@@ -354,7 +363,21 @@ class ConfigOptions
             if (!$subs) {
                 continue;
             }
-            $optCount += self::createDropdown($pid, $gid, ucfirst($family), $subs);
+            $optCount += self::syncDropdown($pid, $gid, ucfirst($family), $subs);
+            $desired[] = ucfirst($family);
+        }
+
+        // Drop dropdowns that are no longer generated (family gone from the
+        // catalog), including their sub-options and pricing rows.
+        $stale = Capsule::table('tblproductconfigoptions')
+            ->where('gid', $gid)->whereNotIn('optionname', $desired)->pluck('id');
+        foreach ($stale as $oid) {
+            $subIds = Capsule::table('tblproductconfigoptionssub')->where('configid', $oid)->pluck('id');
+            foreach ($subIds as $sid) {
+                Capsule::table('tblpricing')->where('type', 'configoptions')->where('relid', $sid)->delete();
+            }
+            Capsule::table('tblproductconfigoptionssub')->where('configid', $oid)->delete();
+            Capsule::table('tblproductconfigoptions')->where('id', $oid)->delete();
         }
 
         Helper::log('configoptions:generate', ['pid' => $pid, 'plan' => $planCode], [
@@ -365,40 +388,64 @@ class ConfigOptions
     }
 
     /**
-     * Create one configurable option (dropdown) with sub-options, zero pricing
-     * rows, and matching option-map entries.
+     * Create or sync one configurable option (dropdown). Existing sub-options
+     * (matched by name with the out-of-stock marker stripped, so a datacenter
+     * renamed by the stock pass still matches) are KEPT with their pricing rows
+     * untouched; missing ones are inserted at price 0; ones no longer desired
+     * are deleted together with their pricing. The option-map entries are
+     * rewritten from scratch by the caller's delete + these inserts.
      *
      * @param list<array<string,string>> $subOptions
      */
-    private static function createDropdown(int $pid, int $gid, string $optionName, array $subOptions): int
+    private static function syncDropdown(int $pid, int $gid, string $optionName, array $subOptions): int
     {
         if (!$subOptions) {
             return 0;
         }
 
-        $configId = (int) Capsule::table('tblproductconfigoptions')->insertGetId([
-            'gid' => $gid,
-            'optionname' => $optionName,
-            'optiontype' => 1, // dropdown
-            'qtyminimum' => 0,
-            'qtymaximum' => 0,
-            'hidden' => 0,
-        ]);
-
-        $sort = 0;
-        foreach ($subOptions as $sub) {
-            $subId = (int) Capsule::table('tblproductconfigoptionssub')->insertGetId([
-                'configid' => $configId,
-                'optionname' => $sub['label'],
-                'sortorder' => $sort++,
+        $configId = (int) (Capsule::table('tblproductconfigoptions')
+            ->where('gid', $gid)->where('optionname', $optionName)->value('id') ?? 0);
+        if ($configId === 0) {
+            $configId = (int) Capsule::table('tblproductconfigoptions')->insertGetId([
+                'gid' => $gid,
+                'optionname' => $optionName,
+                'optiontype' => 1, // dropdown
+                'qtyminimum' => 0,
+                'qtymaximum' => 0,
                 'hidden' => 0,
             ]);
-            self::zeroPricing('configoptions', $subId);
+        }
+
+        // Existing sub-options keyed by canonical (marker-stripped) name. The
+        // stored name is kept as-is; the stock pass owns the visible marker.
+        $existingSubs = [];
+        foreach (Capsule::table('tblproductconfigoptionssub')->where('configid', $configId)->get() as $row) {
+            $existingSubs[self::stripMarker((string) $row->optionname)] = (int) $row->id;
+        }
+
+        $sort = 0;
+        $kept = [];
+        foreach ($subOptions as $sub) {
+            $label = $sub['label'];
+            if (isset($existingSubs[$label])) {
+                $subId = $existingSubs[$label];
+                Capsule::table('tblproductconfigoptionssub')->where('id', $subId)
+                    ->update(['sortorder' => $sort++, 'hidden' => 0]);
+            } else {
+                $subId = (int) Capsule::table('tblproductconfigoptionssub')->insertGetId([
+                    'configid' => $configId,
+                    'optionname' => $label,
+                    'sortorder' => $sort++,
+                    'hidden' => 0,
+                ]);
+                self::zeroPricing('configoptions', $subId);
+            }
+            $kept[$subId] = true;
 
             Capsule::table(Database::OPTION_MAP)->insert([
                 'pid' => $pid,
                 'whmcs_option_group' => $optionName,
-                'whmcs_option_value' => $sub['label'],
+                'whmcs_option_value' => $label,
                 'ovh_kind' => $sub['kind'],
                 'ovh_label' => $sub['ovh_label'] ?? null,
                 'ovh_value' => $sub['ovh_value'] ?? null,
@@ -406,6 +453,15 @@ class ConfigOptions
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
+        }
+
+        // Remove sub-options no longer offered (e.g. an excluded family), with
+        // their pricing rows.
+        foreach ($existingSubs as $subId) {
+            if (!isset($kept[$subId])) {
+                Capsule::table('tblpricing')->where('type', 'configoptions')->where('relid', $subId)->delete();
+                Capsule::table('tblproductconfigoptionssub')->where('id', $subId)->delete();
+            }
         }
 
         return count($subOptions);
@@ -429,21 +485,6 @@ class ConfigOptions
                 'annually' => 0, 'biennially' => 0, 'triennially' => 0,
             ]);
         }
-    }
-
-    private static function deleteGroup(int $gid): void
-    {
-        $optionIds = Capsule::table('tblproductconfigoptions')->where('gid', $gid)->pluck('id');
-        foreach ($optionIds as $oid) {
-            $subIds = Capsule::table('tblproductconfigoptionssub')->where('configid', $oid)->pluck('id');
-            foreach ($subIds as $sid) {
-                Capsule::table('tblpricing')->where('type', 'configoptions')->where('relid', $sid)->delete();
-            }
-            Capsule::table('tblproductconfigoptionssub')->where('configid', $oid)->delete();
-        }
-        Capsule::table('tblproductconfigoptions')->where('gid', $gid)->delete();
-        Capsule::table('tblproductconfiglinks')->where('gid', $gid)->delete();
-        Capsule::table('tblproductconfiggroups')->where('id', $gid)->delete();
     }
 
     /**
