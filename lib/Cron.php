@@ -86,11 +86,12 @@ class Cron
             }
         }
 
-        // Access bootstrap pass: drive freshly delivered plain VPS through key
-        // install -> console password so the customer can log in. Only services
-        // explicitly marked at provisioning ('none'/'key_installed') are touched;
-        // pre-Phase-B services (NULL access_state) are never auto-bootstrapped, so
-        // an in-use VPS is never rebuilt. n8n short-circuits to the 'web' state.
+        // Access bootstrap pass: drive freshly delivered VPS (any image, n8n
+        // included) through key install -> console password so the customer can
+        // log in. Only services explicitly marked at provisioning
+        // ('none'/'key_installed') are touched; pre-Phase-B services (NULL
+        // access_state) are never auto-bootstrapped, so an in-use VPS is never
+        // rebuilt.
         $pendingAccess = Capsule::table(Database::SERVERS)
             ->whereNotNull('service_name')
             ->whereIn('access_state', ['none', 'key_installed'])
@@ -185,8 +186,11 @@ class Cron
 
     /**
      * Drive one service through the access bootstrap state machine:
-     * none -> key_installed -> ready (n8n short-circuits to 'web'). Every step is
-     * guarded so a re-run never re-installs a VPS already in use.
+     * none -> key_installed -> ready. Every image family (plain Linux, Docker,
+     * n8n) runs the same bootstrap, so every customer gets root/console access;
+     * the app on an application image survives because the rebuild reinstalls
+     * the SAME image. Every step is guarded so a re-run never re-installs a VPS
+     * already in use.
      *
      * @param array<string,mixed> $params
      * @param array<string,mixed> $row    mod_ovhvps_servers row (cast to array)
@@ -199,19 +203,6 @@ class Cron
         }
         $os = (string) ($row['os'] ?? '');
         $client = OvhClient::fromParams($params);
-
-        // n8n is web-only: no root bootstrap. Once OVH assigns the IP, mark it web
-        // and email the customer the n8n URL (create the owner account on first
-        // visit). Stays pending until the IP exists.
-        if (stripos($os, 'n8n') !== false) {
-            $ip = self::mainIp($client, $serviceName);
-            if ($ip === '') {
-                return; // IP not assigned yet; retry on the next cron tick.
-            }
-            Database::upsertServer($serviceId, ['ip_main' => $ip, 'access_state' => 'web']);
-            self::notifyN8n($serviceId, $ip);
-            return;
-        }
 
         $state = (string) ($row['access_state'] ?? '');
 
@@ -270,20 +261,6 @@ class Cron
         throw new \RuntimeException('No matching OVH image id for OS "' . $os . '"');
     }
 
-    /** First IPv4 of the VPS, or '' if none is assigned yet. */
-    private static function mainIp(OvhClient $client, string $serviceName): string
-    {
-        $ips = $client->get('/vps/' . $serviceName . '/ips');
-        if (is_array($ips)) {
-            foreach ($ips as $ip) {
-                if (filter_var((string) $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-                    return (string) $ip;
-                }
-            }
-        }
-        return '';
-    }
-
     /**
      * Mirror the non-secret fields (username, IP) into the WHMCS service so the
      * admin sees them, then email the access details with the password and the
@@ -307,6 +284,13 @@ class Cron
             'ssh_user' => $sshUser,
             'service_url' => self::serviceUrl($serviceId),
         ]);
+
+        // An n8n image is a normal Linux VPS plus the n8n app: on top of the
+        // root-access email, send the n8n URL email so the customer can open
+        // the editor. Covers both initial delivery and a reinstall to n8n.
+        if (stripos($os, 'n8n') !== false) {
+            AccessMail::sendN8nReady($serviceId);
+        }
         Helper::log('cron:notify', ['service_id' => $serviceId], ['emailed' => true], true, $serviceId);
     }
 
@@ -320,20 +304,4 @@ class Cron
         return $base === '' ? '' : ($base . '/clientarea.php?action=productdetails&id=' . $serviceId);
     }
 
-    /**
-     * Write the IP into the WHMCS service and send the n8n access email (URL +
-     * create-account note). n8n is web-only, so there is no password.
-     */
-    private static function notifyN8n(int $serviceId, string $ip): void
-    {
-        try {
-            Capsule::table('tblhosting')->where('id', $serviceId)->update(['dedicatedip' => $ip]);
-        } catch (\Throwable $e) {
-            Helper::log('cron:notify', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
-        }
-        if (function_exists('localAPI')) {
-            localAPI('SendEmail', ['messagename' => Database::EMAIL_TEMPLATE_N8N, 'id' => $serviceId]);
-        }
-        Helper::log('cron:notify', ['service_id' => $serviceId], ['n8n' => true], true, $serviceId);
-    }
 }

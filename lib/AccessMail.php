@@ -49,9 +49,9 @@ class AccessMail
     }
 
     /**
-     * Initial/after-reinstall access details for a plain VPS. The password and the
-     * (non-secret) access fields are injected at send time; nothing is stored.
-     * $details carries os, ipv4, ipv6, ssh_user, service_url. n8n uses sendN8nReady().
+     * Initial/after-reinstall access details, sent for every image family. The
+     * password and the (non-secret) access fields are injected at send time;
+     * nothing is stored. $details carries os, ipv4, ipv6, ssh_user, service_url.
      *
      * @param array<string, scalar> $details
      */
@@ -60,7 +60,7 @@ class AccessMail
         self::send($serviceId, Database::EMAIL_TEMPLATE, array_merge($details, ['root_password' => $password]));
     }
 
-    /** n8n URL email (web-only, no password). */
+    /** n8n URL email, sent IN ADDITION to the access email when the installed image is n8n. */
     public static function sendN8nReady(int $serviceId): void
     {
         self::send($serviceId, Database::EMAIL_TEMPLATE_N8N);

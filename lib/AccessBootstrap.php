@@ -7,7 +7,7 @@ use phpseclib3\Crypt\PublicKeyLoader;
 use phpseclib3\Net\SSH2;
 
 /**
- * Automated first-boot access provisioning for plain VPS.
+ * Automated first-boot access provisioning.
  *
  * OVH delivers a VPS with the password behind a manager link the customer cannot
  * use, and the API cannot set a chosen password. So we: generate a per-VPS
@@ -15,7 +15,9 @@ use phpseclib3\Net\SSH2;
  * set a known password for the OS default user over SSH (see setPassword) so the
  * customer can log in through the browser console with no SSH tooling.
  *
- * n8n products do NOT use this (they are accessed over the web).
+ * Every image family uses this, including the free application images (Docker,
+ * n8n): the rebuild-with-key reinstalls the SAME image, so the app survives and
+ * the customer additionally gets root/console access.
  */
 class AccessBootstrap
 {
