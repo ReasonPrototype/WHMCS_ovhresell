@@ -152,6 +152,15 @@ class Cron
             Helper::log('cron:availability', null, $e->getMessage(), false);
         }
 
+        // Watch the OVH catalog for upstream changes (throttled to daily):
+        // plan withdrawn, images retired, price changes -> one admin email
+        // with a margin recap so the reseller re-checks the pricing.
+        try {
+            Watchdog::runIfDue();
+        } catch (\Throwable $e) {
+            Helper::log('cron:watchdog', null, $e->getMessage(), false);
+        }
+
         return ['resolved' => $resolved, 'pending' => $stillPending];
     }
 

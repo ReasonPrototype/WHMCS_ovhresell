@@ -91,6 +91,13 @@ class AdminActions
                     $counts = Availability::refresh();
                     return self::ok('Availability refreshed: ' . $counts['inStock'] . ' in stock, ' . $counts['outOfStock'] . ' out of stock.', $counts);
 
+                case 'admin_check_watchdog':
+                    // Forced, un-throttled run of the catalog watchdog (testing
+                    // aid); the cron runs the same check daily. 0 alerts means
+                    // no change, or the current change was already emailed.
+                    $res = Watchdog::run();
+                    return self::ok('Catalog watchdog ran: ' . $res['groups'] . ' group(s) checked, ' . $res['alerted'] . ' alert(s) sent.', $res);
+
                 case 'admin_clear_image_cache':
                     // Drop the 24h cache of OVH reinstall images for this VPS so the
                     // next Reinstall tab open rebuilds it live (useful for testing).

@@ -299,6 +299,7 @@ function ovhvps_AdminServicesTabFields(array $params): array
     <button class="btn btn-default" data-admin="admin_retry_provision">Retry Provisioning</button>
     <button class="btn btn-default" data-admin="admin_resync_info">Refresh Info</button>
     <button class="btn btn-default" data-admin="admin_check_availability">Check Stock</button>
+    <button class="btn btn-default" data-admin="admin_check_watchdog">Check Catalog Changes</button>
     <button class="btn btn-default" data-admin="admin_clear_image_cache">Clear Image Cache</button>
     <button class="btn btn-default" data-admin="admin_toggle_autodelete" data-enable="1">Schedule Delete@Expiry</button>
     <button class="btn btn-default" data-admin="admin_toggle_autodelete" data-enable="0">Cancel Delete@Expiry</button>
