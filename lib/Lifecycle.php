@@ -98,7 +98,7 @@ class Lifecycle
     }
 
     /**
-     * Terminate: schedule OVH deletion at term end (no token), stop now, and
+     * Terminate: pause OVH auto-renewal (best-effort), stop access now, and
      * optionally request immediate hard-termination (token confirmed later).
      *
      * @param array<string, mixed> $params
@@ -116,9 +116,16 @@ class Lifecycle
         $client = OvhClient::fromParams($params);
 
         try {
+            // Stop OVH auto-renewal so the reseller stops being billed. Best-effort:
+            // a renewal error must NEVER make the WHMCS termination fail (that is
+            // exactly the old "Arguments conflicting" bug this replaces).
             if (Helper::bool($cfg['auto_delete_on_terminate'] ?: 'on')) {
-                self::scheduleDeleteAtExpiration($client, $serviceName);
-                Database::upsertServer($serviceId, ['delete_at_expiration' => 1, 'state' => 'terminating']);
+                try {
+                    self::stopRenewal($client, $serviceName);
+                    Database::upsertServer($serviceId, ['delete_at_expiration' => 1, 'state' => 'terminating']);
+                } catch (\Throwable $e) {
+                    Helper::log('terminate:stopRenewal', ['service' => $serviceName], $e->getMessage(), false, $serviceId);
+                }
             }
 
             // Cut access immediately (best-effort).
@@ -128,10 +135,11 @@ class Lifecycle
                 // VPS may already be stopped/deleting.
             }
 
+            // Optional immediate hard-termination: OVH emails a token the admin
+            // confirms via "Confirm Termination".
             if (Helper::bool($cfg['immediate_terminate'])) {
                 $token = $client->post('/vps/' . $serviceName . '/terminate');
                 Helper::log('terminate:request', ['service' => $serviceName], $token, true, $serviceId);
-                // OVH emails the confirmation token; mark it pending for the admin.
                 self::markTokenPending($serviceId, true);
             }
 
