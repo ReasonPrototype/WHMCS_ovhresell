@@ -218,24 +218,9 @@ class Lifecycle
     }
 
     /**
-     * Schedule OVH deletion at the end of the paid term via serviceInfos.
-     * GET the current renew block, flip the flags, PUT it back.
-     */
-    public static function scheduleDeleteAtExpiration(OvhClient $client, string $serviceName): void
-    {
-        $info = (array) $client->get('/vps/' . $serviceName . '/serviceInfos');
-        $renew = is_array($info['renew'] ?? null) ? $info['renew'] : [];
-        $renew['automatic'] = false;
-        $renew['deleteAtExpiration'] = true;
-        $renew['forced'] = $renew['forced'] ?? false;
-        $client->put('/vps/' . $serviceName . '/serviceInfos', ['renew' => $renew]);
-    }
-
-    /**
      * Guarantee the service auto-renews and is NOT scheduled for deletion, so a
      * committed multi-year sale (ordered as a 1-year upfront on OVH) survives
-     * past the first engagement via REACTIVATE_ENGAGEMENT. Mirror of
-     * scheduleDeleteAtExpiration with the flags inverted. Called when a
+     * past the first engagement via REACTIVATE_ENGAGEMENT. Called when a
      * serviceName becomes known (order success or cron resolution).
      */
     public static function ensureAutoRenew(OvhClient $client, string $serviceName): void
@@ -243,18 +228,6 @@ class Lifecycle
         $info = (array) $client->get('/vps/' . $serviceName . '/serviceInfos');
         $renew = is_array($info['renew'] ?? null) ? $info['renew'] : [];
         $renew['automatic'] = true;
-        $renew['deleteAtExpiration'] = false;
-        $renew['forced'] = $renew['forced'] ?? false;
-        $client->put('/vps/' . $serviceName . '/serviceInfos', ['renew' => $renew]);
-    }
-
-    /**
-     * Cancel a previously scheduled deletion (re-enable the service).
-     */
-    public static function cancelDeleteAtExpiration(OvhClient $client, string $serviceName): void
-    {
-        $info = (array) $client->get('/vps/' . $serviceName . '/serviceInfos');
-        $renew = is_array($info['renew'] ?? null) ? $info['renew'] : [];
         $renew['deleteAtExpiration'] = false;
         $renew['forced'] = $renew['forced'] ?? false;
         $client->put('/vps/' . $serviceName . '/serviceInfos', ['renew' => $renew]);
