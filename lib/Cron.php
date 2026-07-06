@@ -337,13 +337,19 @@ class Cron
             'service_url' => self::serviceUrl($serviceId),
         ]);
 
-        // An n8n image is a normal Linux VPS plus the n8n app: on top of the
-        // root-access email, send the n8n URL email so the customer can open
-        // the editor. Covers both initial delivery and a reinstall to n8n.
-        if (stripos($os, 'n8n') !== false) {
+        // An application image is a normal Linux VPS plus the app: on top of
+        // the root-access email, send the app-specific heads-up (the n8n
+        // editor URL, or the Docker quick-start) so the customer knows how to
+        // reach what they installed. Covers both initial delivery and EVERY
+        // reinstall into the image, because each reinstall re-enters the
+        // bootstrap state machine and ends up here again.
+        $family = ConfigOptions::imageFamily($os);
+        if ($family === 'n8n') {
             AccessMail::sendN8nReady($serviceId);
+        } elseif ($family === 'docker') {
+            AccessMail::sendDockerReady($serviceId);
         }
-        Helper::log('cron:notify', ['service_id' => $serviceId], ['emailed' => true], true, $serviceId);
+        Helper::log('cron:notify', ['service_id' => $serviceId], ['emailed' => true, 'family' => $family], true, $serviceId);
     }
 
     /**

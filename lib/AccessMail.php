@@ -66,6 +66,12 @@ class AccessMail
         self::send($serviceId, Database::EMAIL_TEMPLATE_N8N);
     }
 
+    /** Docker quick-start email, sent IN ADDITION to the access email when the installed image is Docker. */
+    public static function sendDockerReady(int $serviceId): void
+    {
+        self::send($serviceId, Database::EMAIL_TEMPLATE_DOCKER);
+    }
+
     /**
      * Windows delivery: the VPS is online, but the module never knows the
      * Windows password (OVH mails it to the OVH account owner), so the

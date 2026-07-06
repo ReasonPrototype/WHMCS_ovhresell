@@ -26,6 +26,9 @@ class Database
     /** Additional template sent right after the access email when the installed image is n8n. */
     public const EMAIL_TEMPLATE_N8N = 'OVH n8n Access Ready';
 
+    /** Additional template sent right after the access email when the installed image is Docker. */
+    public const EMAIL_TEMPLATE_DOCKER = 'OVH Docker Ready';
+
     /** Custom WHMCS email template for a customer-chosen password change. */
     public const EMAIL_TEMPLATE_PWCHANGED = 'OVH VPS Password Changed';
 
@@ -37,7 +40,17 @@ class Database
 
     /** Bumped whenever the module-managed template bodies change, to force the
      *  new version onto existing installs once (see ensureEmailTemplate). */
-    public const EMAIL_TPL_REV = '4';
+    public const EMAIL_TPL_REV = '5';
+
+    /**
+     * The client language names the Portuguese template body is registered
+     * under. WHMCS only applies a translated template when its `language`
+     * column matches the client's language EXACTLY (no prefix fallback), and
+     * a Portuguese client may carry either 'portuguese' (the historical file,
+     * Brazilian) or 'portuguese-pt' (European) - so the PT body is stored for
+     * both, and every other language falls back to the English base row.
+     */
+    private const EMAIL_TEMPLATE_LANGUAGES = ['portuguese', 'portuguese-pt'];
 
     /**
      * Create any missing tables. Idempotent; safe to call on every request.
@@ -237,13 +250,14 @@ class Database
     }
 
     /**
-     * Create the access-ready email template once (idempotent): an English base
-     * plus a Portuguese variant. The cron sends it when a VPS is ready (any image).
+     * Create the module's email templates once (idempotent): an English base
+     * row plus Portuguese variants for every language name a PT client may
+     * carry (see EMAIL_TEMPLATE_LANGUAGES). The cron sends them when a VPS is
+     * ready (any image).
      *
-     * LIVE-VERIFY: confirm the tblemailtemplates columns and multi-language
-     * behaviour on the target WHMCS version. If the 'portuguese' row is not
-     * picked up, add the translation in Setup -> Email Templates (the base
-     * English template always works).
+     * LIVE-VERIFY: confirm the tblemailtemplates columns on the target WHMCS
+     * version, and send one test email to an English and a Portuguese client
+     * to confirm the language routing.
      */
     public static function ensureEmailTemplate(): void
     {
@@ -336,6 +350,33 @@ class Database
                     . '{$signature}',
             ],
             [
+                'name' => self::EMAIL_TEMPLATE_DOCKER,
+                'subjectEn' => 'Your Docker VPS is ready',
+                'bodyEn' => '<p>Hello {$client_name},</p>'
+                    . '<p>Your VPS <strong>{$service_domain}</strong> was installed with the Docker image and is ready.</p>'
+                    . '<ul>'
+                    . '<li>Server IP: {$service_dedicated_ip}</li>'
+                    . '<li>Docker Engine and Docker Compose come preinstalled.</li>'
+                    . '</ul>'
+                    . '<p>Connect over SSH (or the Console tab in your client area) with the access '
+                    . 'details sent in a separate email, then manage your containers with '
+                    . '<code>docker</code> and <code>docker compose</code>.</p>'
+                    . '<p>Reinstalling the image wipes the server, including all containers and volumes.</p>'
+                    . '{$signature}',
+                'subjectPt' => 'O seu VPS Docker está pronto',
+                'bodyPt' => '<p>Olá {$client_name},</p>'
+                    . '<p>O seu VPS <strong>{$service_domain}</strong> foi instalado com a imagem Docker e está pronto.</p>'
+                    . '<ul>'
+                    . '<li>IP do servidor: {$service_dedicated_ip}</li>'
+                    . '<li>O Docker Engine e o Docker Compose já vêm pré-instalados.</li>'
+                    . '</ul>'
+                    . '<p>Ligue-se por SSH (ou pelo separador Consola na sua área de cliente) com os '
+                    . 'dados de acesso enviados num email separado, e faça a gestão dos seus contentores com '
+                    . '<code>docker</code> e <code>docker compose</code>.</p>'
+                    . '<p>Reinstalar a imagem apaga o servidor, incluindo todos os contentores e volumes.</p>'
+                    . '{$signature}',
+            ],
+            [
                 'name' => self::EMAIL_TEMPLATE_WINDOWS,
                 'subjectEn' => 'Your Windows VPS is ready',
                 'bodyEn' => '<p>Hello {$client_name},</p>'
@@ -386,45 +427,59 @@ class Database
     }
 
     /**
-     * Overwrite an existing template's subject+message to the current version
-     * (English base row + Portuguese variant). Used by the rev-flagged migration.
+     * Write the current version of a template's rows: the English base row
+     * (language '') plus one Portuguese row per language name in
+     * EMAIL_TEMPLATE_LANGUAGES. Upserts, so a language row missing on an older
+     * install (e.g. 'portuguese-pt') is created rather than silently skipped.
+     * Used by the rev-flagged migration.
      */
     private static function forceTemplate(string $name, string $subjectEn, string $messageEn, string $subjectPt, string $messagePt): void
     {
-        Capsule::table('tblemailtemplates')->where('name', $name)->where('language', '')
-            ->update(['subject' => $subjectEn, 'message' => $messageEn]);
-        Capsule::table('tblemailtemplates')->where('name', $name)->where('language', 'portuguese')
-            ->update(['subject' => $subjectPt, 'message' => $messagePt]);
+        self::upsertTemplateRow($name, '', $subjectEn, $messageEn);
+        foreach (self::EMAIL_TEMPLATE_LANGUAGES as $language) {
+            self::upsertTemplateRow($name, $language, $subjectPt, $messagePt);
+        }
     }
 
     /**
-     * Insert one product email template (English base + Portuguese variant) when
-     * it does not exist yet. Idempotent.
+     * Insert one product email template (English base + Portuguese variants)
+     * when it does not exist yet. Idempotent.
      */
     private static function ensureOneTemplate(string $name, string $subjectEn, string $messageEn, string $subjectPt, string $messagePt): void
     {
         if (Capsule::table('tblemailtemplates')->where('name', $name)->exists()) {
             return;
         }
-        $base = [
+        self::forceTemplate($name, $subjectEn, $messageEn, $subjectPt, $messagePt);
+    }
+
+    /**
+     * Update one (name, language) template row's subject/body, inserting the
+     * row with the standard product-template fields when it does not exist.
+     */
+    private static function upsertTemplateRow(string $name, string $language, string $subject, string $message): void
+    {
+        $exists = Capsule::table('tblemailtemplates')
+            ->where('name', $name)->where('language', $language)->exists();
+        if ($exists) {
+            Capsule::table('tblemailtemplates')
+                ->where('name', $name)->where('language', $language)
+                ->update(['subject' => $subject, 'message' => $message]);
+            return;
+        }
+        Capsule::table('tblemailtemplates')->insert([
             'name' => $name,
             'type' => 'product',
-            'subject' => $subjectEn,
-            'message' => $messageEn,
+            'subject' => $subject,
+            'message' => $message,
             'fromname' => '',
             'fromemail' => '',
             'disabled' => 0,
             'custom' => 1,
-            'language' => '',
+            'language' => $language,
             'copyto' => '',
             'plaintext' => 0,
-        ];
-        Capsule::table('tblemailtemplates')->insert($base);
-        Capsule::table('tblemailtemplates')->insert(array_merge($base, [
-            'subject' => $subjectPt,
-            'message' => $messagePt,
-            'language' => 'portuguese',
-        ]));
+        ]);
     }
 
     public static function getMeta(string $key, ?string $default = null): ?string
