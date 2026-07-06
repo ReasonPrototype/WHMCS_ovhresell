@@ -58,11 +58,11 @@ Plesk images are never offered (their licenses would be billed to you).
 | **Live stock control** | Hourly check of OVH stock per plan and per datacenter, driving WHMCS native stock control. Out-of-stock datacenters render as disabled options in the cart. |
 | **Catalog watchdog** | Daily diff of the live OVH catalog against the synced copy, for the plans you sell: plan withdrawn, OS images added/retired, addons changed, any price change. One admin email per upstream change, with a WHMCS-price vs OVH-price margin recap, so you re-check your margins before accepting the new catalog. |
 | **Suspend / unsuspend** | Maps to OVH `stop` / `start`. |
-| **Automatic cancellation** | On cancellation/termination, schedules OVH deletion at the end of the paid term (`renew.deleteAtExpiration`, no email token) so OVH stops billing you, and stops the VPS immediately. |
+| **Automatic cancellation** | On a cancellation request the module pauses OVH auto-renewal (`renew.automatic=false`, no email token) so OVH stops billing you; the VPS keeps running until the paid term ends and then lapses (OVH deletes it after its grace period). |
 | **Option & model upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`). It also upgrades the VPS to a bigger model in place (`ChangePackage` to a larger plan, via OVH `order/upgrade`). Both are add-only, auto-paid, and gated (orderability/`availableUpgrade` + a dry-run before every charge). |
 | **Customer control panel** | Power, VNC console, OS reinstall, snapshots, automated backups, Veeam, additional disks, IPs + reverse DNS, secondary DNS. Every service gets the full panel; Linux images (Docker and n8n included) also get the automated root-access bootstrap and access email. |
 | **n8n tab** | When the installed OS is an n8n image, the client area shows an **n8n** tab with the editor URL (port 5678 by default) IN ADDITION to all the normal tabs. |
-| **Admin service panel** | All client actions plus admin-only controls: sync catalog, generate options, retry provisioning, set `serviceName` manually, confirm immediate termination, toggle delete-at-expiration, and view OVH cost (your margin). |
+| **Admin service panel** | All client actions plus admin-only controls: sync catalog, generate options, retry provisioning, set `serviceName` manually, confirm immediate termination, pause/resume OVH auto-renew, and view OVH cost (your margin). |
 | **Audit trail** | Every OVH API call and order step is logged to the WHMCS module log and to the module's own task-log table. Each order records the OVH dry-run cost for margin auditing. |
 
 ### ❌ What it does NOT do (and why)
@@ -71,7 +71,7 @@ Plesk images are never offered (their licenses would be billed to you).
 |---|---|
 | **No option removal / downgrade** via `ChangePackage` | OVH options are cancelled separately from the order flow; the OVH API does not expose an in-cart removal, so the module is **add-only** and refuses removals/reductions with a clear message rather than silently desyncing WHMCS from OVH. |
 | **No model downgrade** (e.g. VPS-3 → VPS-1) | OVH does not support shrinking a VPS in place; it requires a brand-new VPS plus a manual migration. The module refuses any target that is not in the VPS's `availableUpgrade` list. |
-| **Immediate hard-termination needs a token** | OVH emails a confirmation token to the account holder for an instant `POST /terminate`. The automatic path (delete-at-expiration) needs no token; for immediate deletion, paste the token into *Confirm Termination* on the admin panel. |
+| **Immediate hard-termination needs a token** | OVH emails a confirmation token to the account holder for an instant `POST /terminate`. The automatic path (pause auto-renew) needs no token; for immediate deletion, click Terminate then paste the token into *Confirm Termination* on the admin panel. |
 | **Usage graphs are best-effort** | OVH deprecated `/use` and `/monitoring`; the module reads `/statistics`, whose exact contract varies by VPS generation. |
 | **First order on a brand-new OVH account may 403** | OVH may require a manual anti-fraud review on the first order of a new account. Validate with one test order before going live. |
 | **You can only sell what your OVH account can order now** | The module orders on *your* account, so stock and orderability mirror your account. It surfaces this honestly via stock control instead of failing at checkout. |
@@ -97,7 +97,7 @@ ovhvps/
 │   ├── OvhClient.php     # Thin wrapper over the OVH SDK with normalised errors
 │   ├── OvhApiException.php
 │   ├── Provisioning.php  # The full order-cart → checkout → resolve serviceName flow
-│   ├── Lifecycle.php     # suspend/unsuspend/terminate, delete-at-expiration, auto-renew
+│   ├── Lifecycle.php     # suspend/unsuspend/terminate, stop/resume auto-renew
 │   ├── Catalog.php       # Sync + read the OVH public VPS catalog into cache tables
 │   ├── Availability.php  # OVH stock → WHMCS native stock control (hourly)
 │   ├── ConfigOptions.php # Generate WHMCS configurable options + map selections to OVH
@@ -325,9 +325,9 @@ order right now. The module keeps WHMCS in sync:
   (dry-run, records your cost) → `POST checkout` with `autoPayWithPreferredPaymentMethod`.
   The `serviceName` is resolved by polling `/vps`; if OVH is slow, the cron finishes it.
 - **Suspend / unsuspend**: `stop` / `start`.
-- **Cancellation** (`TerminateAccount` + the `CancellationRequest` hook): schedules deletion
-  at end of term via `renew.deleteAtExpiration` (no token) and stops the VPS. Automatic for
-  both customer cancellations and admin terminations.
+- **Cancellation** (`TerminateAccount` + the `CancellationRequest` hook): pauses OVH
+  auto-renewal (`renew.automatic=false`) so OVH stops billing you; the VPS lapses at the end
+  of the paid term. Runs for both customer cancellations and admin terminations.
 - **Auto-renew**: guaranteed after delivery (synchronous path and via cron) so multi-year
   terms survive past the first engagement.
 - **Upgrades** (`ChangePackage`): when the customer buys an extra (backup, snapshot,

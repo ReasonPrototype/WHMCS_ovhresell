@@ -70,15 +70,15 @@ class Helper
                 'Description' => 'Fallback datacenter when the customer does not pick one (e.g. GRA, SBG, BHS).',
             ],
             'auto_delete_on_terminate' => [
-                'FriendlyName' => 'Auto Delete On Terminate',
+                'FriendlyName' => 'Pause Renewal On Cancel',
                 'Type' => 'yesno',
                 'Default' => 'on',
-                'Description' => 'On termination/cancellation, schedule OVH deletion at end of the paid term (renew.deleteAtExpiration). Fully automatic, no email token.',
+                'Description' => 'On cancellation/termination, pause OVH auto-renew (renew.automatic=false) so the reseller stops being billed; the VPS lapses at the end of the paid term. Fully automatic, no email token.',
             ],
             'immediate_terminate' => [
                 'FriendlyName' => 'Request Immediate Termination',
                 'Type' => 'yesno',
-                'Description' => 'Also fire OVH immediate termination (needs an emailed token confirmed by the admin). Leave off to rely on deleteAtExpiration only.',
+                'Description' => 'Also fire OVH immediate hard-termination on Terminate (OVH emails a token the admin confirms). Leave off to just pause renewal and let the VPS lapse.',
             ],
         ];
     }
