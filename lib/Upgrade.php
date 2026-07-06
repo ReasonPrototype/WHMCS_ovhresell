@@ -105,7 +105,7 @@ class Upgrade
 
         $cfg = Helper::cfg($params);
         $endpoint = Helper::endpointKey($params);
-        $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'FR'));
+        $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'PT'));
         $targetPlan = trim($cfg['plan_code']);
         $currentPlan = (string) ($server['plan_code'] ?? '');
 

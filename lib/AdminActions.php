@@ -22,7 +22,7 @@ class AdminActions
         $serviceId = (int) ($params['serviceid'] ?? 0);
         $cfg = Helper::cfg($params);
         $endpoint = Helper::endpointKey($params);
-        $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'FR'));
+        $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'PT'));
 
         try {
             switch ($action) {

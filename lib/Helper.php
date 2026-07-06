@@ -34,8 +34,8 @@ class Helper
                 'FriendlyName' => 'OVH Subsidiary',
                 'Type' => 'text',
                 'Size' => '6',
-                'Default' => 'FR',
-                'Description' => 'Ordering subsidiary (FR, GB, DE, ES, IT, PL, PT, IE, FI, LT, NL, CA, US...). Must match your OVH account country.',
+                'Default' => 'PT',
+                'Description' => 'Ordering subsidiary (PT, FR, GB, DE, ES, IT, PL, IE, FI, LT, NL, CA, US...). Must match your OVH account country. Defaults to PT when left empty.',
             ],
             'plan_code' => [
                 'FriendlyName' => 'VPS Plan Code',

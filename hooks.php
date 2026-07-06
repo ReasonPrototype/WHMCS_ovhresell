@@ -94,7 +94,7 @@ add_hook('ShoppingCartValidateCheckout', 1, static function (array $vars): array
                 continue;
             }
             $endpoint = Helper::endpointKey($params);
-            $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'FR'));
+            $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'PT'));
 
             $chosen = Availability::cartSelection($pid, (array) ($cartProduct['configoptions'] ?? []));
             $dc = $chosen['datacenter'];

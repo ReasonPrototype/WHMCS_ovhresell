@@ -65,7 +65,7 @@ class Availability
                 continue;
             }
             $endpoint = Helper::endpointKey($params);
-            $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'FR'));
+            $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'PT'));
             $key = $endpoint . '|' . $subsidiary . '|' . $planCode;
 
             try {
@@ -347,7 +347,7 @@ class Availability
                 continue;
             }
             $endpoint = Helper::endpointKey($params);
-            $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'FR'));
+            $subsidiary = strtoupper(trim($cfg['subsidiary'] ?: 'PT'));
             $row = Database::getAvailability($endpoint, $subsidiary, $planCode);
             if ($row === null) {
                 continue;
