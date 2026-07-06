@@ -56,6 +56,7 @@ Plesk images are never offered (their licenses would be billed to you).
 | **One-click configurable options** | Generates the WHMCS *Configurable Options* (Operating System, Datacenter, and paid extras) for a product directly from the OVH catalog - no need to create a service first. The OS dropdown offers every catalog image except the cPanel/Plesk families (never sold). Re-running the generation SYNCS the options: existing prices are kept, new options start at 0, removed ones are deleted. |
 | **Billing term matching** | Picks the OVH commitment that matches the customer's WHMCS billing cycle, capturing the deepest discount **without ever committing you on OVH for longer than the customer paid**. Multi-year terms re-commit automatically. |
 | **Live stock control** | Hourly check of OVH stock per plan and per datacenter, driving WHMCS native stock control. Out-of-stock datacenters render as disabled options in the cart. |
+| **Catalog watchdog** | Daily diff of the live OVH catalog against the synced copy, for the plans you sell: plan withdrawn, OS images added/retired, addons changed, any price change. One admin email per upstream change, with a WHMCS-price vs OVH-price margin recap, so you re-check your margins before accepting the new catalog. |
 | **Suspend / unsuspend** | Maps to OVH `stop` / `start`. |
 | **Automatic cancellation** | On cancellation/termination, schedules OVH deletion at the end of the paid term (`renew.deleteAtExpiration`, no email token) so OVH stops billing you, and stops the VPS immediately. |
 | **Option & model upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`). It also upgrades the VPS to a bigger model in place (`ChangePackage` to a larger plan, via OVH `order/upgrade`). Both are add-only, auto-paid, and gated (orderability/`availableUpgrade` + a dry-run before every charge). |
@@ -204,7 +205,7 @@ Then put this server in a **Server Group** and link your products to that group.
 
    | Field | Value / example |
    |---|---|
-   | **OVH Subsidiary** | `PT` (must match the account country) |
+   | **OVH Subsidiary** | `PT` (the default; must match the account country) |
    | **VPS Plan Code** | from the [plan table](#-plan-codes), e.g. `vps-2025-model1` |
    | **Billing Duration** | `P1M` *(fallback - see [Billing](#-billing-whmcs-cycle-to-ovh-commitment))* |
    | **Pricing Mode** | `default` *(fallback)* |
@@ -300,7 +301,15 @@ order right now. The module keeps WHMCS in sync:
   **visible but not selectable**.
 - **Provisioning guards:** it never orders a plan *or* a datacenter marked unavailable
   (on top of the checkout dry-run that prevents charging blindly).
-- Force a check from the admin service panel → **Check Stock**.
+- **Catalog watchdog:** once a day the module also diffs the **live** OVH catalog against
+  the synced copy for the plans you sell. If OVH withdrew a plan, added/retired an OS
+  image, changed an addon, or changed any price, the WHMCS admins get ONE email
+  summarising the changes plus a margin recap (your WHMCS monthly price vs the current
+  OVH monthly price per product). The store keeps selling from the synced copy until you
+  accept the changes with **Sync Catalog** + **Generate OVH options**; the alert repeats
+  only when OVH changes something else.
+- Force a check from the admin service panel → **Check Stock** (stock) or
+  **Check Catalog Changes** (watchdog).
 
 > The module **manages** stock for ovhvps products - do not set the quantity by hand.
 
@@ -351,9 +360,9 @@ Image policy, enforced server-side at generation AND at reinstall:
 
 | Family | Sold? | Reinstall? |
 |---|---|---|
-| Plain Linux distros (Debian, Ubuntu, ...) | ✅ free | ✅ any service |
-| App images (**Docker**, **n8n**) | ✅ free | ✅ any service (in and out) |
-| **Windows** | ✅ paid OVH license attached; set your markup as the price of the Windows sub-options | 🔒 only a service ordered with Windows |
+| Plain Linux distros (Debian, Ubuntu, ...) | ✅ free | ✅ any Linux service |
+| App images (**Docker**, **n8n**) | ✅ free | ✅ any Linux service (in and out, freely) |
+| **Windows** | ✅ paid OVH license attached; set your markup as the price of the Windows sub-options | 🔒 locked both ways: only a service ordered with Windows may reinstall Windows, and a Windows service may ONLY reinstall Windows (its license keeps billing either way) |
 | **cPanel / Plesk** | ❌ never (their licenses would be billed to you) | ❌ never |
 
 **n8n is just an image.** The module decides a service is n8n purely from its **installed OS
@@ -364,10 +373,15 @@ with the editor URL (port 5678 by default). Reinstall to a plain distro and the 
 disappears; reinstall to n8n and it comes back.
 
 **Access emails.** Every delivered or reinstalled **Linux** VPS goes through the SSH access
-bootstrap and receives the **"OVH VPS Access Ready"** email (root user + password). When the
-installed image is n8n, the customer additionally receives **"OVH n8n Access Ready"** with
-the editor URL (the owner account is created on the first browser visit; reinstalling resets
-it).
+bootstrap and receives the **"OVH VPS Access Ready"** email (root user + password). On top of
+that, the app images get their own heads-up: **"OVH n8n Access Ready"** with the editor URL
+when the installed image is n8n (the owner account is created on the first browser visit;
+reinstalling resets it), and **"OVH Docker Ready"** with the Docker quick-start when the
+installed image is Docker. The app emails follow the INSTALLED image, so every reinstall into
+(or out of) an app image re-sends exactly the emails that match the new installation. The
+templates are module-managed: an English base plus a Portuguese variant registered for both
+the `portuguese` and `portuguese-pt` client languages (any other language falls back to
+English).
 
 > ⚠️ **Windows is delivered manually.** There is no SSH bootstrap on Windows and the module
 > never rebuilds a delivered Windows VPS (that would wipe the OVH-installed licensed Windows).
