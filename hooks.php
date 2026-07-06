@@ -2,9 +2,9 @@
 
 /**
  * WHMCS hooks for the ovhvps module:
- *  - CancellationRequest: when a customer requests cancellation, schedule the
- *    OVH deletion at term end immediately (so OVH stops billing the reseller),
- *    without waiting for WHMCS to terminate the service.
+ *  - CancellationRequest: when a customer requests cancellation, pause OVH
+ *    auto-renewal now (so OVH stops billing the reseller); the VPS keeps
+ *    running until WHMCS terminates it and then lapses at the end of the term.
  *  - AfterCronJob: reconcile pending provisioning (resolve delivered serviceNames).
  */
 

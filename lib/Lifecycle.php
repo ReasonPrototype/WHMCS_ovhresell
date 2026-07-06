@@ -212,7 +212,8 @@ class Lifecycle
         $got = (bool) (is_array($after['renew'] ?? null) ? ($after['renew']['automatic'] ?? false) : false);
         if ($got !== $expectAutomatic) {
             throw new \RuntimeException(
-                'OVH did not apply renew.automatic=' . ($expectAutomatic ? 'true' : 'false') . ' for ' . $serviceName . '.'
+                'OVH did not apply renew.automatic=' . ($expectAutomatic ? 'true' : 'false')
+                . ' for ' . $serviceName . ' (got ' . ($got ? 'true' : 'false') . ').'
             );
         }
     }
