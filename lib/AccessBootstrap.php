@@ -12,8 +12,9 @@ use phpseclib3\Net\SSH2;
  * OVH delivers a VPS with the password behind a manager link the customer cannot
  * use, and the API cannot set a chosen password. So we: generate a per-VPS
  * keypair, reinstall the VPS with the public key (no OVH password email), then
- * set a known password for the OS default user over SSH (see setPassword) so the
- * customer can log in through the browser console with no SSH tooling.
+ * over SSH (see setPassword) enable password login and set a known password for
+ * the OS default user, so the customer can log in with that password either over
+ * SSH (as the default user, sudo for root) or through the browser console.
  *
  * Every Linux image family uses this, including the free application images
  * (Docker, n8n): the rebuild-with-key reinstalls the SAME image, so the app
@@ -116,11 +117,55 @@ class AccessBootstrap
     }
 
     /**
-     * SSH in as $user with the private key and set both that user's and root's
-     * password (the default user has passwordless sudo on OVH cloud images), so
-     * the customer can log in through the browser console with no SSH tooling.
-     * Returns true on success. Bounded attempts so a not-yet-booted VPS does not
-     * hang the cron; the cron re-runs on its next tick if this returns false.
+     * Build the remote shell command that provisions first-boot access over
+     * SSH, as one &&-chain so the OVHVPS_PW_OK sentinel is printed only when
+     * every step succeeds:
+     *
+     *   1. enable SSH password authentication via a drop-in that outranks OVH's
+     *      cloud-init default, so the customer can log in as the OS default user
+     *      with the emailed password (exactly what the delivery email promises);
+     *   2. validate the resulting sshd config ("sshd -t") before trusting it;
+     *   3. set the password for the default user AND root (console + SSH);
+     *   4. apply it (reload, falling back to restart).
+     *
+     * Root stays console-only: we flip PasswordAuthentication but never
+     * PermitRootLogin, so root is reachable through the KVM console, not by
+     * password over SSH.
+     *
+     * LIVE-VERIFY: the 00- drop-in wins over OVH's cloud-init default
+     * (50-cloud-init.conf sets PasswordAuthentication no) because sshd uses the
+     * FIRST value found and reads the sshd_config.d drop-ins in lexical order,
+     * so a 00- prefix is read before 50-. Assumes the image's sshd_config
+     * carries the standard drop-in Include directive (true on every
+     * Ubuntu/Debian/Alma/Rocky/CentOS/Fedora image we sell).
+     *
+     * Pure: assembles the string only (no SSH/WHMCS), so it is unit-tested
+     * offline. Each shell-embedded value is single-quoted with the POSIX escape
+     * ('\'' closes, escapes a literal quote, reopens) so the shell never sees an
+     * unbalanced quote.
+     */
+    public static function bootstrapCommand(string $user, string $password): string
+    {
+        $u = str_replace("'", "'\\''", $user);
+        $p = str_replace("'", "'\\''", $password);
+        $dropIn = '/etc/ssh/sshd_config.d/00-ovhvps.conf';
+
+        return "printf '%s\\n' 'PasswordAuthentication yes' | sudo tee " . $dropIn . " >/dev/null"
+            . " && sudo sshd -t"
+            . " && printf '%s\\n' '" . $u . ':' . $p . "' | sudo chpasswd"
+            . " && printf '%s\\n' 'root:" . $p . "' | sudo chpasswd"
+            . " && (sudo systemctl reload ssh || sudo systemctl restart ssh)"
+            . " && echo OVHVPS_PW_OK";
+    }
+
+    /**
+     * SSH in as $user with the private key, then run {@see bootstrapCommand()}
+     * to enable SSH password login and set both that user's and root's password
+     * (the default user has passwordless sudo on OVH cloud images), so the
+     * customer can log in either over SSH or through the browser console with
+     * the emailed password. Returns true on success. Bounded attempts so a
+     * not-yet-booted VPS does not hang the cron; the cron re-runs on its next
+     * tick if this returns false.
      *
      * LIVE-VERIFY: assumes the default user has passwordless sudo and the image
      * does not enforce `requiretty`. If sudo needs a TTY, enable a PTY before
@@ -136,16 +181,11 @@ class AccessBootstrap
             try {
                 $ssh = new SSH2($ip, 22, 20);
                 if ($ssh->login($user, $key)) {
-                    // Single-quote the "user:pass" payload; escape any quote in
-                    // the password the POSIX way ('\'' closes, escapes, reopens).
-                    // Chain with && so the sentinel prints only if BOTH chpasswd
-                    // calls succeed: never report success on a password we did
-                    // not actually set (which would email a broken login).
-                    $escaped = str_replace("'", "'\\''", $password);
-                    $cmd = "printf '%s\\n' '" . $user . ':' . $escaped . "' | sudo chpasswd"
-                        . " && printf '%s\\n' 'root:" . $escaped . "' | sudo chpasswd"
-                        . " && echo OVHVPS_PW_OK";
-                    $out = (string) $ssh->exec($cmd);
+                    // One &&-chain (see bootstrapCommand): enable SSH password
+                    // auth, set the user + root password, validate + reload
+                    // sshd. The sentinel prints only if every step succeeds, so
+                    // we never report success on access we did not provision.
+                    $out = (string) $ssh->exec(self::bootstrapCommand($user, $password));
                     $ssh->disconnect();
                     if (strpos($out, 'OVHVPS_PW_OK') !== false) {
                         return true;
