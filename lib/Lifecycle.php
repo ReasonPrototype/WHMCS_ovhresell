@@ -6,6 +6,12 @@ namespace OvhVps;
  * Service lifecycle against OVH: suspend (stop), unsuspend (start), terminate
  * and cancellation.
  *
+ * Suspend also pauses OVH auto-renewal (renew.automatic = false) so a
+ * non-paying service stops being billed by OVH while it sits suspended; a
+ * reactivated service resumes auto-renewal on unsuspend. This is what prevents
+ * paying OVH for another month on a customer who simply stopped paying without
+ * ever requesting cancellation.
+ *
  * Cancellation is automatic via renew.deleteAtExpiration (no email token): the
  * VPS is deleted by OVH at the end of the paid term and access is cut now with
  * a stop. Immediate hard-termination (POST /terminate) needs an emailed token,
@@ -39,19 +45,56 @@ class Lifecycle
     }
 
     /**
+     * Suspend: stop the VPS now and pause OVH auto-renewal, so a non-paying
+     * service stops being billed by OVH while it sits suspended (WHMCS only
+     * terminates later, if at all). The renewal change is best-effort: the
+     * stop is what determines the WHMCS result.
+     *
      * @param array<string, mixed> $params
      */
     public static function suspend(array $params): string
     {
-        return self::power($params, 'stop', 'suspend');
+        $result = self::power($params, 'stop', 'suspend');
+        self::applyRenew($params, 'suspend');
+        return $result;
     }
 
     /**
+     * Unsuspend: start the VPS again and resume OVH auto-renewal (a late payer
+     * has been reactivated), clearing any deletion scheduled while suspended.
+     *
      * @param array<string, mixed> $params
      */
     public static function unsuspend(array $params): string
     {
-        return self::power($params, 'start', 'unsuspend');
+        $result = self::power($params, 'start', 'unsuspend');
+        self::applyRenew($params, 'unsuspend');
+        return $result;
+    }
+
+    /**
+     * Apply a suspend/unsuspend renewal transition against OVH: GET the current
+     * renew block, run it through {@see renewFlags()}, PUT it back. Best-effort
+     * and logged - a renewal error must not fail the WHMCS suspend/unsuspend.
+     *
+     * @param array<string, mixed> $params
+     */
+    private static function applyRenew(array $params, string $intent): void
+    {
+        $serviceId = (int) ($params['serviceid'] ?? 0);
+        try {
+            $serviceName = self::serviceName($params);
+            if ($serviceName === null) {
+                return; // nothing provisioned yet
+            }
+            $client = OvhClient::fromParams($params);
+            $info = (array) $client->get('/vps/' . $serviceName . '/serviceInfos');
+            $renew = self::renewFlags($intent, is_array($info['renew'] ?? null) ? $info['renew'] : []);
+            $client->put('/vps/' . $serviceName . '/serviceInfos', ['renew' => $renew]);
+            Helper::log('renew:' . $intent, ['service' => $serviceName], $renew, true, $serviceId);
+        } catch (\Throwable $e) {
+            Helper::log('renew:' . $intent, null, $e->getMessage(), false, $serviceId);
+        }
     }
 
     /**
@@ -97,6 +140,33 @@ class Lifecycle
             Helper::log('terminate', ['service' => $serviceName], $e->getMessage(), false, $serviceId);
             return 'Error: ' . $e->getMessage();
         }
+    }
+
+    /**
+     * Compute the OVH `renew` block for a suspend/unsuspend transition,
+     * preserving unrelated flags. Pure (no HTTP) so it stays unit-testable
+     * offline; {@see applyRenew()} does the GET/PUT around it.
+     *
+     *  - 'suspend'   stop auto-renewal so OVH stops billing a non-paying
+     *                service, but NEVER schedule deletion (the customer may
+     *                still pay and be unsuspended); a deletion already
+     *                scheduled (e.g. a prior cancellation) is preserved.
+     *  - 'unsuspend' a late payer is reactivated: resume auto-renewal and
+     *                clear any pending deletion.
+     *
+     * @param array<string, mixed> $renew current renew block from serviceInfos
+     * @return array<string, mixed> the renew block to PUT back
+     */
+    public static function renewFlags(string $intent, array $renew): array
+    {
+        if ($intent === 'suspend') {
+            $renew['automatic'] = false;
+        } elseif ($intent === 'unsuspend') {
+            $renew['automatic'] = true;
+            $renew['deleteAtExpiration'] = false;
+        }
+        $renew['forced'] = $renew['forced'] ?? false;
+        return $renew;
     }
 
     /**
