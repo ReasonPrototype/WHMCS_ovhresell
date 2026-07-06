@@ -238,14 +238,16 @@ class Actions
 
     /**
      * The images a customer may reinstall to: the OS options the plan sells
-     * (mod_ovhvps_option_map vps_os values) filtered by the family policy.
-     * Excluded panel families (cPanel/Plesk) are never offered; a locked family
-     * (Windows, paid per order) only when the VPS was ordered with it, so a
-     * reinstall can never create a license OVH bills us for; plain distros and
-     * the free app images (Docker/n8n) are open to every service, which is what
-     * lets any customer reinstall into or out of n8n. Falls back to the family
-     * filter alone when the plan OS names do not line up with the image names,
-     * so reinstall always works but never leaks an excluded or locked image.
+     * (mod_ovhvps_option_map vps_os values) filtered by the family policy
+     * ({@see ConfigOptions::canReinstallTo}). Excluded panel families
+     * (cPanel/Plesk) are never offered; a locked family (Windows, paid per
+     * order) locks both ways, so a Windows service only sees Windows images
+     * and a non-Windows service never sees them; plain distros and the free
+     * app images (Docker/n8n) are open to every Linux service, which is what
+     * lets any customer reinstall into or out of Docker/n8n freely. Falls back
+     * to the family filter alone when the plan OS names do not line up with
+     * the image names, so reinstall always works but never leaks an excluded
+     * or locked image.
      *
      * @param array<string, mixed> $params
      * @return list<array{id:string,name:string}>
@@ -256,19 +258,12 @@ class Actions
 
         $serviceId = (int) ($params['serviceid'] ?? 0);
         $server = $serviceId > 0 ? (Database::getServer($serviceId) ?? []) : [];
-        $currentFamily = ConfigOptions::imageFamily((string) ($server['os'] ?? ''));
+        $currentOs = (string) ($server['os'] ?? '');
 
-        // Family policy (every path): excluded families never; locked families
-        // only when the VPS was ordered with that family; everything else always.
-        $familyOk = static function (array $img) use ($currentFamily): bool {
-            $fam = ConfigOptions::imageFamily((string) ($img['name'] ?? ''));
-            if (in_array($fam, ConfigOptions::EXCLUDED_FAMILIES, true)) {
-                return false;
-            }
-            if (in_array($fam, ConfigOptions::LOCKED_FAMILIES, true)) {
-                return $fam === $currentFamily;
-            }
-            return true;
+        // Family policy (every path): the pure reinstall rule against the
+        // currently installed image.
+        $familyOk = static function (array $img) use ($currentOs): bool {
+            return ConfigOptions::canReinstallTo($currentOs, (string) ($img['name'] ?? ''));
         };
 
         // Faithful list: only images whose name the plan offers as an OS option.

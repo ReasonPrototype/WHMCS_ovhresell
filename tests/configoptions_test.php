@@ -134,4 +134,32 @@ check('familySubOptions blank description falls back to planCode', ConfigOptions
     ['label' => 'storage-x', 'kind' => 'option', 'ovh_option_plan_code' => 'storage-x'],
 ]);
 
+// --- canReinstallTo(): the reinstall family policy ---
+
+// Linux images (plain distros and the free app images) swap freely, both ways.
+check('reinstall linux -> linux', ConfigOptions::canReinstallTo('Debian 12', 'Ubuntu 24.04'), true);
+check('reinstall linux -> docker', ConfigOptions::canReinstallTo('Debian 12', 'Debian 12 - Docker'), true);
+check('reinstall linux -> n8n', ConfigOptions::canReinstallTo('Ubuntu 24.04', 'Debian 12 - n8n'), true);
+check('reinstall docker -> n8n', ConfigOptions::canReinstallTo('Debian 12 - Docker', 'Debian 12 - n8n'), true);
+check('reinstall n8n -> linux', ConfigOptions::canReinstallTo('Debian 12 - n8n', 'Debian 12'), true);
+check('reinstall docker -> linux', ConfigOptions::canReinstallTo('Debian 12 - Docker', 'Rocky Linux 9'), true);
+
+// Windows locks both ways: never in from Linux, never out to Linux.
+check('reinstall linux -> windows blocked', ConfigOptions::canReinstallTo('Debian 12', 'Windows Server 2022 Standard'), false);
+check('reinstall windows -> linux blocked', ConfigOptions::canReinstallTo('Windows Server 2022 Standard', 'Debian 12'), false);
+check('reinstall windows -> docker blocked', ConfigOptions::canReinstallTo('Windows Server 2022 Standard', 'Debian 12 - Docker'), false);
+check('reinstall windows -> windows ok', ConfigOptions::canReinstallTo('Windows Server 2022 Standard', 'Windows Server 2025 Datacenter'), true);
+check('reinstall unknown current -> windows blocked', ConfigOptions::canReinstallTo('', 'Windows Server 2022'), false);
+
+// Excluded panel families are refused for everyone, even bundled with Windows.
+check('reinstall linux -> cpanel blocked', ConfigOptions::canReinstallTo('Debian 12', 'AlmaLinux 9 - cPanel'), false);
+check('reinstall linux -> plesk blocked', ConfigOptions::canReinstallTo('Debian 12', 'Ubuntu 22.04 - Plesk'), false);
+check('reinstall windows -> windows+plesk blocked', ConfigOptions::canReinstallTo('Windows Server 2022', 'Windows Server 2022 - Plesk'), false);
+
+// isSellableImage refuses an excluded token wherever it appears in the name.
+check('sellable plain linux', ConfigOptions::isSellableImage('Debian 12'), true);
+check('sellable windows', ConfigOptions::isSellableImage('Windows Server 2022 Standard'), true);
+check('sellable cpanel blocked', ConfigOptions::isSellableImage('AlmaLinux 9 - cPanel'), false);
+check('sellable windows+plesk blocked', ConfigOptions::isSellableImage('Windows Server 2022 - Plesk'), false);
+
 done();

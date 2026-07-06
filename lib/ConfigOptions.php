@@ -76,9 +76,12 @@ class ConfigOptions
 
     /**
      * Families locked to the ordered OS: Windows is sellable (its paid license
-     * is attached to the order), but a service may only REINSTALL Windows when
-     * it was ordered with Windows, so a reinstall can never create a license
-     * OVH bills us for outside an order.
+     * is attached to the order), but the lock works BOTH ways at reinstall
+     * time. Only a service ordered with Windows may reinstall Windows (a
+     * reinstall can never create a license OVH bills us for outside an order),
+     * and a Windows service may ONLY reinstall Windows (its license keeps
+     * billing either way, and leaving would be a one-way door because the
+     * inbound lock would then refuse the way back).
      */
     public const LOCKED_FAMILIES = ['windows'];
 
@@ -111,7 +114,46 @@ class ConfigOptions
      */
     public static function isSellableImage(string $image): bool
     {
-        return !in_array(self::imageFamily($image), self::EXCLUDED_FAMILIES, true);
+        return !self::hasExcludedFamilyToken($image);
+    }
+
+    /**
+     * Whether an image name carries ANY excluded-family token (cPanel/Plesk),
+     * independent of which single family imageFamily() classifies it as, so a
+     * hypothetical "Windows + Plesk" bundle is refused too. Pure.
+     */
+    public static function hasExcludedFamilyToken(string $image): bool
+    {
+        $image = strtolower($image);
+        foreach (self::EXCLUDED_FAMILIES as $family) {
+            if (str_contains($image, $family)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Reinstall policy between the CURRENTLY INSTALLED image and a target
+     * image. Excluded panel families (cPanel/Plesk) are never allowed. A
+     * locked family (Windows) locks BOTH ways: a service running a locked
+     * image may only reinstall inside that family, and a service outside it
+     * may never enter it. Everything else (plain distros and the free app
+     * images Docker/n8n) is freely interchangeable, which is what lets a
+     * customer move in and out of Docker/n8n at will. Pure: no WHMCS/DB
+     * dependency.
+     */
+    public static function canReinstallTo(string $currentImage, string $targetImage): bool
+    {
+        if (self::hasExcludedFamilyToken($targetImage)) {
+            return false;
+        }
+        $current = self::imageFamily($currentImage);
+        $target = self::imageFamily($targetImage);
+        if (in_array($current, self::LOCKED_FAMILIES, true) || in_array($target, self::LOCKED_FAMILIES, true)) {
+            return $target === $current;
+        }
+        return true;
     }
 
     /** Normalise an OS name for matching (lowercase, collapse whitespace). Pure. */
