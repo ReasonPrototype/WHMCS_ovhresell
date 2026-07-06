@@ -41,12 +41,19 @@ add_hook('CancellationRequest', 1, static function (array $vars): void {
         return;
     }
 
+    // Both "Immediate" and "End of Billing Period" requests do the same thing at
+    // request time: pause OVH auto-renewal so the reseller stops being billed.
+    // We never stop the VPS here (the customer keeps access until WHMCS actually
+    // terminates); immediate deletion is the admin's manual step. The type is
+    // logged only. This runs at REQUEST time because WHMCS has no "admin accepted"
+    // hook, and pausing renewal is safe and reversible (Resume Auto-Renew).
+    $type = (string) ($vars['type'] ?? '');
     try {
-        Lifecycle::scheduleDeleteAtExpiration(OvhClient::fromParams($params), $serviceName);
-        \OvhVps\Database::upsertServer($serviceId, ['delete_at_expiration' => 1]);
-        Helper::log('hook:cancellation', ['service' => $serviceName], 'scheduled deleteAtExpiration', true, $serviceId);
+        Lifecycle::stopRenewal(OvhClient::fromParams($params), $serviceName);
+        Database::upsertServer($serviceId, ['delete_at_expiration' => 1]);
+        Helper::log('hook:cancellation', ['service' => $serviceName, 'type' => $type], 'auto-renew paused', true, $serviceId);
     } catch (\Throwable $e) {
-        Helper::log('hook:cancellation', ['service' => $serviceName], $e->getMessage(), false, $serviceId);
+        Helper::log('hook:cancellation', ['service' => $serviceName, 'type' => $type], $e->getMessage(), false, $serviceId);
     }
 });
 
