@@ -280,7 +280,7 @@ function ovhvps_AdminServicesTabFields(array $params): array
         $orderStatus = $esc($order['status'] ?? '');
         $cost = $esc($order['expected_cost'] ?? '');
         $currency = $esc($order['currency'] ?? '');
-        $autoDelete = !empty($server['delete_at_expiration']) ? 'yes' : 'no';
+        $renewState = !empty($server['delete_at_expiration']) ? 'paused (cancelling)' : 'active';
         $webRoot = $esc(rtrim((string) ($params['systemurl'] ?? ''), '/'));
 
         $html = <<<HTML
@@ -290,7 +290,7 @@ function ovhvps_AdminServicesTabFields(array $params): array
     <tr><td><b>State</b></td><td>{$state}</td></tr>
     <tr><td><b>Order</b></td><td>{$orderId} ({$orderStatus})</td></tr>
     <tr><td><b>OVH cost (your price)</b></td><td>{$cost} {$currency}</td></tr>
-    <tr><td><b>Delete at expiration</b></td><td>{$autoDelete}</td></tr>
+    <tr><td><b>Auto-renew</b></td><td>{$renewState}</td></tr>
   </table>
   <div id="ovhvps_admin_status" style="margin:8px 0;"></div>
   <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
@@ -301,8 +301,8 @@ function ovhvps_AdminServicesTabFields(array $params): array
     <button class="btn btn-default" data-admin="admin_check_availability">Check Stock</button>
     <button class="btn btn-default" data-admin="admin_check_watchdog">Check Catalog Changes</button>
     <button class="btn btn-default" data-admin="admin_clear_image_cache">Clear Image Cache</button>
-    <button class="btn btn-default" data-admin="admin_toggle_autodelete" data-enable="1">Schedule Delete@Expiry</button>
-    <button class="btn btn-default" data-admin="admin_toggle_autodelete" data-enable="0">Cancel Delete@Expiry</button>
+    <button class="btn btn-default" data-admin="admin_stop_renew">Pause Renewal</button>
+    <button class="btn btn-default" data-admin="admin_resume_renew">Resume Auto-Renew</button>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
     <input type="text" id="ovhvps_admin_sn" class="form-control" style="width:240px" placeholder="set serviceName manually">

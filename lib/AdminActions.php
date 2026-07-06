@@ -59,20 +59,23 @@ class AdminActions
                     $r = Lifecycle::confirmTermination($params, $token);
                     return $r['success'] ? self::ok($r['message']) : self::err($r['message']);
 
-                case 'admin_toggle_autodelete':
+                case 'admin_stop_renew':
                     $serviceName = Lifecycle::serviceName($params);
                     if ($serviceName === null) {
                         return self::err('No serviceName for this service.');
                     }
-                    $client = OvhClient::fromParams($params);
-                    if (!empty($input['enable'])) {
-                        Lifecycle::scheduleDeleteAtExpiration($client, $serviceName);
-                        Database::upsertServer($serviceId, ['delete_at_expiration' => 1]);
-                        return self::ok('Deletion at expiration scheduled.');
+                    Lifecycle::stopRenewal(OvhClient::fromParams($params), $serviceName);
+                    Database::upsertServer($serviceId, ['delete_at_expiration' => 1]);
+                    return self::ok('OVH auto-renew paused; the VPS will not be re-billed and lapses at expiration.');
+
+                case 'admin_resume_renew':
+                    $serviceName = Lifecycle::serviceName($params);
+                    if ($serviceName === null) {
+                        return self::err('No serviceName for this service.');
                     }
-                    Lifecycle::cancelDeleteAtExpiration($client, $serviceName);
+                    Lifecycle::ensureAutoRenew(OvhClient::fromParams($params), $serviceName);
                     Database::upsertServer($serviceId, ['delete_at_expiration' => 0]);
-                    return self::ok('Deletion at expiration cancelled.');
+                    return self::ok('OVH auto-renew resumed. Remember to also remove the pending cancellation in WHMCS.');
 
                 case 'admin_resync_info':
                     $serviceName = Lifecycle::serviceName($params);
