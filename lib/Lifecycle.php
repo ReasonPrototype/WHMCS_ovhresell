@@ -176,6 +176,40 @@ class Lifecycle
     }
 
     /**
+     * Pause OVH auto-renewal for a cancelled service so the reseller stops being
+     * billed, WITHOUT writing deleteAtExpiration (that PUT returns OVH "Arguments
+     * conflicting"). A non-renewing VPS lapses at the end of the paid term and
+     * OVH deletes it after its grace period. GET the current renew block, flip
+     * only `automatic`, PUT it back, then GET-verify the change took.
+     */
+    public static function stopRenewal(OvhClient $client, string $serviceName): void
+    {
+        $info = (array) $client->get('/vps/' . $serviceName . '/serviceInfos');
+        $renew = self::renewFlags('cancel', is_array($info['renew'] ?? null) ? $info['renew'] : []);
+        self::putRenewVerified($client, $serviceName, $renew, false);
+    }
+
+    /**
+     * PUT a renew block to serviceInfos, then re-GET and assert that
+     * `renew.automatic` landed on the expected value. OVH's serviceInfos PUT can
+     * silently no-op on some renew combinations, so this read-back is what
+     * guarantees the reseller's billing state actually changed.
+     *
+     * @param array<string, mixed> $renew
+     */
+    public static function putRenewVerified(OvhClient $client, string $serviceName, array $renew, bool $expectAutomatic): void
+    {
+        $client->put('/vps/' . $serviceName . '/serviceInfos', ['renew' => $renew]);
+        $after = (array) $client->get('/vps/' . $serviceName . '/serviceInfos');
+        $got = (bool) (is_array($after['renew'] ?? null) ? ($after['renew']['automatic'] ?? false) : false);
+        if ($got !== $expectAutomatic) {
+            throw new \RuntimeException(
+                'OVH did not apply renew.automatic=' . ($expectAutomatic ? 'true' : 'false') . ' for ' . $serviceName . '.'
+            );
+        }
+    }
+
+    /**
      * Schedule OVH deletion at the end of the paid term via serviceInfos.
      * GET the current renew block, flip the flags, PUT it back.
      */
