@@ -153,13 +153,19 @@ class Lifecycle
      *                scheduled (e.g. a prior cancellation) is preserved.
      *  - 'unsuspend' a late payer is reactivated: resume auto-renewal and
      *                clear any pending deletion.
+     *  - 'cancel'    customer cancellation: pause auto-renewal so OVH stops
+     *                billing the reseller. Identical renew transform to
+     *                'suspend'; the VPS lapses at expiration and OVH deletes it
+     *                after its grace period. Deliberately never sets
+     *                deleteAtExpiration (that write returns OVH "Arguments
+     *                conflicting").
      *
      * @param array<string, mixed> $renew current renew block from serviceInfos
      * @return array<string, mixed> the renew block to PUT back
      */
     public static function renewFlags(string $intent, array $renew): array
     {
-        if ($intent === 'suspend') {
+        if ($intent === 'suspend' || $intent === 'cancel') {
             $renew['automatic'] = false;
         } elseif ($intent === 'unsuspend') {
             $renew['automatic'] = true;

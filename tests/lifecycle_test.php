@@ -25,4 +25,18 @@ check('unsuspend restores auto-renew and clears deletion', Lifecycle::renewFlags
 check('unsuspend from a clean block', Lifecycle::renewFlags('unsuspend', ['automatic' => false]),
     ['automatic' => true, 'deleteAtExpiration' => false, 'forced' => false]);
 
+// cancel: a customer cancellation pauses OVH auto-renewal (same renew transform
+// as suspend) but NEVER writes deleteAtExpiration:true - that field is what makes
+// OVH return "Arguments conflicting". A non-renewing VPS lapses at expiration.
+check('cancel disables auto-renew', Lifecycle::renewFlags('cancel', ['automatic' => true]),
+    ['automatic' => false, 'forced' => false]);
+
+check('cancel leaves an untouched deleteAtExpiration/period block intact',
+    Lifecycle::renewFlags('cancel', ['automatic' => true, 'deleteAtExpiration' => false, 'period' => 1]),
+    ['automatic' => false, 'deleteAtExpiration' => false, 'period' => 1, 'forced' => false]);
+
+check('cancel never forces deletion (preserves a pre-existing flag, does not set it)',
+    Lifecycle::renewFlags('cancel', ['automatic' => true, 'deleteAtExpiration' => true]),
+    ['automatic' => false, 'deleteAtExpiration' => true, 'forced' => false]);
+
 done();
