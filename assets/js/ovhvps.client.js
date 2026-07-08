@@ -92,11 +92,14 @@
             return;
         }
         run(action).done(function (res) {
-            if (res && res.status === "OK") {
+            if (!res) { return; }
+            if (res.status === "OK") {
                 if (action === "stop") { $("#ovhvps_state").text("stopped"); }
                 if (action === "start") { $("#ovhvps_state").text("running"); }
-                if (action === "snapshot_delete" || action === "snapshot_create") { loadSnapshot(); }
+                if (action === "snapshot_delete" || action === "snapshot_revert") { loadSnapshot(); }
             }
+            // Create returns Processing (async OVH task), so poll until it lands.
+            if (action === "snapshot_create" && res.status !== "Error") { watchSnapshot(); }
         });
     });
 
@@ -130,27 +133,97 @@
     });
 
     // --- snapshots ---
+    // Revert/Delete only make sense once a snapshot exists; clicking them without
+    // one just yields an OVH error, so mirror existence in their enabled state.
+    function setSnapshotButtons(hasSnapshot) {
+        $('[data-action="snapshot_revert"], [data-action="snapshot_delete"]').prop("disabled", !hasSnapshot);
+    }
+
+    function renderSnapshot(s) {
+        if (s) {
+            $("#ovhvps_snapshot_info").text(cfg.lang.snapshot + ": " + (s.description || s.creationDate || cfg.lang.present));
+        } else {
+            $("#ovhvps_snapshot_info").text(cfg.lang.no_snapshot);
+        }
+        setSnapshotButtons(!!s);
+    }
+
     function loadSnapshot() {
         call("snapshot_list").done(function (res) {
-            var html = cfg.lang.no_snapshot;
-            if (res && res.status === "OK" && res.data && res.data.snapshot) {
-                var s = res.data.snapshot;
-                html = cfg.lang.snapshot + ": " + (s.description || s.creationDate || cfg.lang.present);
-            }
-            $("#ovhvps_snapshot_info").html(html);
+            var s = (res && res.status === "OK" && res.data) ? res.data.snapshot : null;
+            renderSnapshot(s);
         });
     }
 
+    // OVH builds the snapshot as a background task, so right after "create" the
+    // snapshot GET keeps 404ing. Show a "creating" note and poll until it lands
+    // (bounded) so the panel updates itself without a manual tab switch.
+    var snapshotPoll = null;
+    function watchSnapshot() {
+        $("#ovhvps_snapshot_info").text(cfg.lang.snapshot_creating);
+        setSnapshotButtons(false);
+        var tries = 0;
+        if (snapshotPoll) { window.clearInterval(snapshotPoll); }
+        snapshotPoll = window.setInterval(function () {
+            tries++;
+            call("snapshot_list").done(function (res) {
+                var s = (res && res.status === "OK" && res.data) ? res.data.snapshot : null;
+                if (s) {
+                    window.clearInterval(snapshotPoll);
+                    snapshotPoll = null;
+                    renderSnapshot(s);
+                } else if (tries >= 6) {
+                    window.clearInterval(snapshotPoll);
+                    snapshotPoll = null;
+                }
+            });
+        }, 20000);
+    }
+
     // --- backups / veeam / ftp ---
+    // Build a restore control: a dropdown of point-in-time restore points plus a
+    // Restore button. `action` is the server action and `paramName` the field it
+    // expects (automated backup -> restore_point, Veeam -> restore_point_id). OVH
+    // returns points as bare ids/dates or as objects, so normalise each defensively.
+    function restoreControl(points, action, paramName) {
+        var list = [];
+        $.each(points || [], function (i, p) {
+            if (p !== null && typeof p === "object") {
+                var value = p.id || p.restorePoint || p.creationTime || p.creationDate || JSON.stringify(p);
+                var label = p.creationTime || p.creationDate || p.date || p.restorePoint || value;
+                list.push({ value: String(value), label: String(label) });
+            } else {
+                list.push({ value: String(p), label: String(p) });
+            }
+        });
+        if (!list.length) { return $("<p>").text(cfg.lang.no_restore_points); }
+
+        var $sel = $('<select class="form-control input-sm" style="display:inline-block;width:auto;max-width:320px;margin-right:8px;">');
+        $.each(list, function (i, o) { $sel.append($("<option>").val(o.value).text(o.label)); });
+        var $btn = $('<button class="btn btn-sm btn-warning">').text(cfg.lang.restore).on("click", function () {
+            if (!window.confirm(cfg.lang.confirm_restore)) { return; }
+            var extra = {};
+            extra[paramName] = $sel.val();
+            run(action, extra);
+        });
+        return $('<div style="margin-top:10px;">')
+            .append($('<label style="display:block;margin-bottom:4px;color:#555;">').text(cfg.lang.restore_point))
+            .append($sel, $btn);
+    }
+
     function loadBackups() {
         loadInto("#ovhvps_backup_panel", "backup_status", function (d) {
             var $w = $("<div>");
             $w.append($("<p>").text(cfg.lang.automated_backup + " " + ((d && d.backup) ? cfg.lang.enabled : cfg.lang.not_enabled)));
-            if (d && d.backup) { $w.append(kvTable(d.backup)); }
+            if (d && d.backup) {
+                $w.append(kvTable(d.backup));
+                $w.append(restoreControl(d.restorePoints, "backup_restore", "restore_point"));
+            }
             return $w;
         });
         loadInto("#ovhvps_veeam_panel", "veeam_status", function (d) {
-            return (d && d.veeam) ? kvTable(d.veeam) : $("<p>").text(cfg.lang.veeam_not_enabled);
+            if (!d || !d.veeam) { return $("<p>").text(cfg.lang.veeam_not_enabled); }
+            return $("<div>").append(kvTable(d.veeam), restoreControl(d.restorePoints, "veeam_restore", "restore_point_id"));
         });
         loadInto("#ovhvps_ftp_panel", "ftp_status", function (d) {
             return d ? kvTable(d) : $("<p>").text(cfg.lang.ftp_not_enabled);

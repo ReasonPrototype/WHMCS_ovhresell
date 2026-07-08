@@ -77,7 +77,10 @@ class Actions
                 case 'backup_status':
                     return self::ok('', [
                         'backup' => self::safeGet($client, '/vps/' . $serviceName . '/automatedBackup'),
-                        'restorePoints' => self::safeGet($client, '/vps/' . $serviceName . '/automatedBackup/restorePoints'),
+                        // OVH requires ?state=available to list the points that can
+                        // actually be restored; without it the call 400s and the
+                        // restore dropdown would stay empty.
+                        'restorePoints' => self::safeGet($client, '/vps/' . $serviceName . '/automatedBackup/restorePoints', ['state' => 'available']),
                     ]);
                 case 'backup_restore':
                     $client->post('/vps/' . $serviceName . '/automatedBackup/restore', array_filter([
