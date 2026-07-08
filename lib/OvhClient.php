@@ -81,11 +81,31 @@ class OvhClient
     }
 
     /**
+     * Collapse an empty request body to null.
+     *
+     * OVH request bodies must serialize as JSON objects. Call sites build
+     * bodies with array_filter(), which yields [] once every optional field is
+     * empty (e.g. a snapshot with no description). The OVH SDK would then send
+     * json_encode([]) === "[]", a JSON array, and the API rejects it with
+     * "Invalid JSON received: not a JSON object". Passing null instead makes the
+     * SDK send an empty request body, which OVH accepts for optional payloads.
+     *
+     * @param array<string, mixed>|null $body
+     * @return array<string, mixed>|null
+     */
+    public static function normalizeBody(?array $body): ?array
+    {
+        return $body === [] ? null : $body;
+    }
+
+    /**
      * @param array<string, mixed>|null $payload
      * @return mixed
      */
     private function call(string $method, string $path, ?array $payload)
     {
+        $payload = self::normalizeBody($payload);
+
         try {
             switch ($method) {
                 case 'GET':
@@ -95,7 +115,7 @@ class OvhClient
                     $res = $this->api->post($path, $payload);
                     break;
                 case 'PUT':
-                    $res = $this->api->put($path, $payload ?? []);
+                    $res = $this->api->put($path, $payload);
                     break;
                 case 'DELETE':
                     $res = $this->api->delete($path, $payload);
