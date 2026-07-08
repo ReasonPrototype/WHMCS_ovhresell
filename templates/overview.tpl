@@ -27,6 +27,7 @@
             snapshot: "{$lang.js_snapshot|default:'Snapshot'|escape:'javascript'}",
             present: "{$lang.js_present|default:'present'|escape:'javascript'}",
             snapshot_creating: "{$lang.js_snapshot_creating|default:'Snapshot is being created; this can take a minute. This panel refreshes automatically.'|escape:'javascript'}",
+            snapshot_option_required: "{$lang.js_snapshot_option_required|default:'Snapshots require the Snapshot option, which is not enabled on this VPS yet. Please contact support to enable it.'|escape:'javascript'}",
             automated_backup: "{$lang.js_automated_backup|default:'Automated backup:'|escape:'javascript'}",
             enabled: "{$lang.js_enabled|default:'enabled'|escape:'javascript'}",
             not_enabled: "{$lang.js_not_enabled|default:'not enabled'|escape:'javascript'}",

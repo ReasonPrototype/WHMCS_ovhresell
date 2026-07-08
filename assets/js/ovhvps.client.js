@@ -139,6 +139,10 @@
         $('[data-action="snapshot_revert"], [data-action="snapshot_delete"]').prop("disabled", !hasSnapshot);
     }
 
+    function setSnapshotCreate(enabled) {
+        $('[data-action="snapshot_create"]').prop("disabled", !enabled);
+    }
+
     function renderSnapshot(s) {
         if (s) {
             $("#ovhvps_snapshot_info").text(cfg.lang.snapshot + ": " + (s.description || s.creationDate || cfg.lang.present));
@@ -150,8 +154,17 @@
 
     function loadSnapshot() {
         call("snapshot_list").done(function (res) {
-            var s = (res && res.status === "OK" && res.data) ? res.data.snapshot : null;
-            renderSnapshot(s);
+            var data = (res && res.status === "OK" && res.data) ? res.data : null;
+            // OVH needs the Snapshot option ordered on the VPS or Create just
+            // 400s; when we can tell it is missing, say so and lock the button.
+            if (data && data.optionEnabled === false) {
+                $("#ovhvps_snapshot_info").text(cfg.lang.snapshot_option_required);
+                setSnapshotCreate(false);
+                setSnapshotButtons(false);
+                return;
+            }
+            setSnapshotCreate(true);
+            renderSnapshot(data ? data.snapshot : null);
         });
     }
 
