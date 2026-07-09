@@ -210,4 +210,4 @@
 </div>
 {/if}
 
-<script src="{$WEB_ROOT}/modules/servers/ovhvps/assets/js/ovhvps.client.js"></script>
+<script src="{$WEB_ROOT}/modules/servers/ovhvps/assets/js/ovhvps.client.js?v={$assetVer|default:'0'}"></script>

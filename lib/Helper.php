@@ -19,6 +19,20 @@ class Helper
     ];
 
     /**
+     * Cache-busting version tag for a bundled asset: the file's modification
+     * time, so the query string changes whenever the asset is updated and
+     * browsers refetch it instead of serving a stale copy after a deploy.
+     * Returns '0' when the file cannot be read.
+     *
+     * @param string $relativePath path under the module root, e.g. "assets/js/ovhvps.client.js"
+     */
+    public static function assetVersion(string $relativePath): string
+    {
+        $mtime = @filemtime(dirname(__DIR__) . '/' . ltrim($relativePath, '/'));
+        return $mtime ? (string) $mtime : '0';
+    }
+
+    /**
      * Ordered list of product Module Settings.
      *
      * IMPORTANT: the ORDER defines the WHMCS configoption index

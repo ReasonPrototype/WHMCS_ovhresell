@@ -147,7 +147,8 @@ add_hook('ClientAreaHeaderOutput', 1, static function (array $vars): string {
         JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
     );
     return '<script type="application/json" id="ovhvps-stock">' . $payload . '</script>'
-        . '<script src="' . $base . '/modules/servers/ovhvps/assets/js/ovhvps.stock.js"></script>';
+        . '<script src="' . $base . '/modules/servers/ovhvps/assets/js/ovhvps.stock.js?v='
+        . \OvhVps\Helper::assetVersion('assets/js/ovhvps.stock.js') . '"></script>';
 });
 
 /**
@@ -161,7 +162,8 @@ add_hook('AdminAreaFooterOutput', 1, static function (array $vars): string {
         return '';
     }
     $base = rtrim((string) ($GLOBALS['CONFIG']['SystemURL'] ?? ''), '/');
-    return '<script src="' . $base . '/modules/servers/ovhvps/assets/js/ovhvps.admin.js"></script>';
+    return '<script src="' . $base . '/modules/servers/ovhvps/assets/js/ovhvps.admin.js?v='
+        . \OvhVps\Helper::assetVersion('assets/js/ovhvps.admin.js') . '"></script>';
 });
 
 /**
@@ -197,7 +199,11 @@ add_hook('AdminAreaFooterOutput', 1, static function (array $vars): string {
 
     $base = rtrim((string) ($GLOBALS['CONFIG']['SystemURL'] ?? ''), '/');
     $ajax = htmlspecialchars($base . '/modules/servers/ovhvps/ajax.php', ENT_QUOTES);
-    $js = htmlspecialchars($base . '/modules/servers/ovhvps/assets/js/ovhvps.product.js', ENT_QUOTES);
+    $js = htmlspecialchars(
+        $base . '/modules/servers/ovhvps/assets/js/ovhvps.product.js?v='
+        . \OvhVps\Helper::assetVersion('assets/js/ovhvps.product.js'),
+        ENT_QUOTES
+    );
 
     return '<div id="ovhvps_product" data-pid="' . $pid . '" data-csrf="' . $csrf
         . '" data-ajax="' . $ajax . '" data-has-options="' . $hasOptions
