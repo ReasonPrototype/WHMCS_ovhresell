@@ -275,6 +275,67 @@ class ConfigOptions
     }
 
     /**
+     * Pure: did the customer buy the paid OVH option behind a family? True when
+     * the chosen sub-option value resolves to an option-kind option_map row with
+     * a non-empty planCode ("None" carries an empty planCode, so it is not a
+     * purchase; config-kind rows like OS/datacenter never count). Pure so it is
+     * unit-tested without WHMCS.
+     *
+     * @param list<array<string,mixed>> $mapRows option_map rows for the product
+     */
+    public static function familyPurchasedFrom(string $group, ?string $selectedValue, array $mapRows): bool
+    {
+        if ($selectedValue === null) {
+            return false;
+        }
+        $value = self::stripMarker(trim($selectedValue));
+        foreach ($mapRows as $row) {
+            if (($row['ovh_kind'] ?? '') !== 'option') {
+                continue;
+            }
+            if ((string) ($row['whmcs_option_group'] ?? '') !== $group) {
+                continue;
+            }
+            if ((string) ($row['whmcs_option_value'] ?? '') !== $value) {
+                continue;
+            }
+            return trim((string) ($row['ovh_option_plan_code'] ?? '')) !== '';
+        }
+        return false;
+    }
+
+    /**
+     * Whether the service purchased the paid OVH option behind a family (e.g.
+     * "snapshot", "veeam"). Reads the live WHMCS service config options
+     * (authoritative, unlike $params['configoptions'] which the client area may
+     * omit) and resolves the chosen sub-option against the option_map. Only pass
+     * families with NO free tier: automatedBackup ships a free Standard tier and
+     * must never be gated. Used to lock the client-area tabs that need a paid
+     * option behind what the customer actually bought.
+     */
+    public static function isFamilyPurchased(int $serviceId, int $pid, string $family): bool
+    {
+        if ($serviceId <= 0 || $pid <= 0) {
+            return false;
+        }
+        Helper::init();
+        $group = ucfirst($family);
+        $selectedValue = Capsule::table('tblhostingconfigoptions as h')
+            ->join('tblproductconfigoptions as co', 'co.id', '=', 'h.configid')
+            ->join('tblproductconfigoptionssub as sub', 'sub.id', '=', 'h.optionid')
+            ->where('h.relid', $serviceId)
+            ->where('co.optionname', $group)
+            ->value('sub.optionname');
+        $mapRows = Capsule::table(Database::OPTION_MAP)
+            ->where('pid', $pid)
+            ->get()
+            ->map(static fn ($r) => (array) $r)
+            ->all();
+
+        return self::familyPurchasedFrom($group, $selectedValue === null ? null : (string) $selectedValue, $mapRows);
+    }
+
+    /**
      * Build the dropdown sub-options for one addon family from its catalog rows.
      *
      * A family OVH flags as mandatory (the cart must carry one of its addons, e.g.

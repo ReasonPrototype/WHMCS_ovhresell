@@ -381,37 +381,16 @@ class Actions
     }
 
     /**
-     * @return array{snapshot: mixed, optionEnabled: bool|null}
+     * @return array{snapshot: mixed}
      */
     private static function snapshotInfo(OvhClient $client, string $serviceName): array
     {
-        $snapshot = null;
         try {
-            $snapshot = $client->get('/vps/' . $serviceName . '/snapshot');
+            return ['snapshot' => $client->get('/vps/' . $serviceName . '/snapshot')];
         } catch (\Throwable $e) {
             // 404 when no snapshot exists.
+            return ['snapshot' => null];
         }
-        return [
-            'snapshot' => $snapshot,
-            'optionEnabled' => self::activeOptionPresent($client, $serviceName, 'snapshot'),
-        ];
-    }
-
-    /**
-     * Whether an OVH VPS option (e.g. "snapshot", "automatedBackup", "veeam") is
-     * currently active on the service. createSnapshot and the backup restores
-     * require the matching option to be ordered first; without it OVH answers a
-     * terse 400 whose message is just the serviceName. Returns null when the
-     * option list cannot be read, so callers fail open rather than hide a working
-     * feature on a transient API error.
-     */
-    private static function activeOptionPresent(OvhClient $client, string $serviceName, string $option): ?bool
-    {
-        $active = self::safeGet($client, '/vps/' . $serviceName . '/activeOptions');
-        if (!is_array($active)) {
-            return null;
-        }
-        return in_array($option, $active, true);
     }
 
     /**

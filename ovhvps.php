@@ -14,6 +14,7 @@
 
 use OvhVps\Actions;
 use OvhVps\AdminActions;
+use OvhVps\ConfigOptions;
 use OvhVps\Database;
 use OvhVps\Helper;
 use OvhVps\Lifecycle;
@@ -206,6 +207,19 @@ function ovhvps_ClientArea(array $params): array
             'user' => (string) ($server['root_user'] ?? ''),
         ];
 
+        // Client-area feature gating: Snapshot and Veeam are paid OVH options
+        // with no free tier, so their tabs are locked when the customer did not
+        // buy the matching configurable option. Automated Backup ships a free
+        // Standard tier and is never gated. The unlock button sends the customer
+        // to this exact service's configure-options page.
+        $pid = (int) ($params['pid'] ?? 0);
+        $entitlements = [
+            'snapshot' => ConfigOptions::isFamilyPurchased($serviceId, $pid, 'snapshot'),
+            'veeam' => ConfigOptions::isFamilyPurchased($serviceId, $pid, 'veeam'),
+        ];
+        $upgradeUrl = rtrim((string) ($params['systemurl'] ?? ''), '/')
+            . '/upgrade.php?type=configoptions&id=' . $serviceId;
+
         return [
             'templatefile' => 'templates/overview',
             'vars' => [
@@ -215,6 +229,8 @@ function ovhvps_ClientArea(array $params): array
                 'hostname' => (string) ($params['domain'] ?? ''),
                 'os' => $os,
                 'access' => $access,
+                'entitlements' => $entitlements,
+                'upgradeUrl' => $upgradeUrl,
                 'csrf' => $_SESSION['ovhvps_csrf'],
                 'lang' => $lang,
                 'error' => $error,

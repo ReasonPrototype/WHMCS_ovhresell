@@ -152,19 +152,32 @@
         setSnapshotButtons(!!s);
     }
 
+    // A locked-option notice plus a button to THIS service's configure-options
+    // page, shown in a tab whose feature is a paid OVH option the customer has
+    // not bought. Shared by the Snapshots and Veeam panels.
+    function optionBlock() {
+        return $('<div class="alert alert-warning">')
+            .append($("<p>").text(cfg.lang.option_locked))
+            .append($('<a class="btn btn-primary">').attr("href", cfg.upgradeUrl).text(cfg.lang.option_buy));
+    }
+
+    function renderSnapshotLocked() {
+        $("#ovhvps_snapshot_info").empty().append(optionBlock());
+        setSnapshotCreate(false);
+        setSnapshotButtons(false);
+    }
+
     function loadSnapshot() {
+        // Snapshot is a paid option with no free tier: lock the tab when it was
+        // not purchased, and skip the OVH call (no cryptic 400 in the log).
+        if (!cfg.entitlements || !cfg.entitlements.snapshot) {
+            renderSnapshotLocked();
+            return;
+        }
         call("snapshot_list").done(function (res) {
-            var data = (res && res.status === "OK" && res.data) ? res.data : null;
-            // OVH needs the Snapshot option ordered on the VPS or Create just
-            // 400s; when we can tell it is missing, say so and lock the button.
-            if (data && data.optionEnabled === false) {
-                $("#ovhvps_snapshot_info").text(cfg.lang.snapshot_option_required);
-                setSnapshotCreate(false);
-                setSnapshotButtons(false);
-                return;
-            }
+            var s = (res && res.status === "OK" && res.data) ? res.data.snapshot : null;
             setSnapshotCreate(true);
-            renderSnapshot(data ? data.snapshot : null);
+            renderSnapshot(s);
         });
     }
 
@@ -234,10 +247,17 @@
             }
             return $w;
         });
-        loadInto("#ovhvps_veeam_panel", "veeam_status", function (d) {
-            if (!d || !d.veeam) { return $("<p>").text(cfg.lang.veeam_not_enabled); }
-            return $("<div>").append(kvTable(d.veeam), restoreControl(d.restorePoints, "veeam_restore", "restore_point_id"));
-        });
+        // Veeam is a paid option with no free tier: lock it (and skip the OVH
+        // call) when it was not purchased. Automated Backup above stays open
+        // because its Standard tier is free for every VPS.
+        if (cfg.entitlements && cfg.entitlements.veeam) {
+            loadInto("#ovhvps_veeam_panel", "veeam_status", function (d) {
+                if (!d || !d.veeam) { return $("<p>").text(cfg.lang.veeam_not_enabled); }
+                return $("<div>").append(kvTable(d.veeam), restoreControl(d.restorePoints, "veeam_restore", "restore_point_id"));
+            });
+        } else {
+            $("#ovhvps_veeam_panel").empty().append(optionBlock());
+        }
         loadInto("#ovhvps_ftp_panel", "ftp_status", function (d) {
             return d ? kvTable(d) : $("<p>").text(cfg.lang.ftp_not_enabled);
         });

@@ -10,6 +10,8 @@
         serviceid: {$serviceid|intval},
         csrf: "{$csrf}",
         systemDisk: {$ovh.disk|default:0|intval},
+        upgradeUrl: "{$upgradeUrl|default:''|escape:'javascript'}",
+        entitlements: { snapshot: {if $entitlements.snapshot}true{else}false{/if}, veeam: {if $entitlements.veeam}true{else}false{/if} },
         lang: {
             working: "{$lang.js_working|default:'Working on your request…'|escape:'javascript'}",
             failed: "{$lang.js_failed|default:'The action failed.'|escape:'javascript'}",
@@ -27,7 +29,8 @@
             snapshot: "{$lang.js_snapshot|default:'Snapshot'|escape:'javascript'}",
             present: "{$lang.js_present|default:'present'|escape:'javascript'}",
             snapshot_creating: "{$lang.js_snapshot_creating|default:'Snapshot is being created; this can take a minute. This panel refreshes automatically.'|escape:'javascript'}",
-            snapshot_option_required: "{$lang.js_snapshot_option_required|default:'Snapshots require the Snapshot option, which is not enabled on this VPS yet. Please contact support to enable it.'|escape:'javascript'}",
+            option_locked: "{$lang.js_option_locked|default:'This feature is a paid option that is not part of your current plan. Add it to unlock this tab.'|escape:'javascript'}",
+            option_buy: "{$lang.js_option_buy|default:'Add this option'|escape:'javascript'}",
             automated_backup: "{$lang.js_automated_backup|default:'Automated backup:'|escape:'javascript'}",
             enabled: "{$lang.js_enabled|default:'enabled'|escape:'javascript'}",
             not_enabled: "{$lang.js_not_enabled|default:'not enabled'|escape:'javascript'}",
