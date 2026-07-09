@@ -231,7 +231,6 @@ function ovhvps_ClientArea(array $params): array
                 'access' => $access,
                 'entitlements' => $entitlements,
                 'upgradeUrl' => $upgradeUrl,
-                'assetVer' => Helper::assetVersion('assets/js/ovhvps.client.js'),
                 'csrf' => $_SESSION['ovhvps_csrf'],
                 'lang' => $lang,
                 'error' => $error,
