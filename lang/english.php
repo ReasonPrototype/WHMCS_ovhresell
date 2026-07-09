@@ -42,6 +42,7 @@ $_LANG['disk'] = 'Disk (GB)';
 $_LANG['storage_vps_disk'] = 'VPS disk';
 $_LANG['storage_additional_disks'] = 'Additional disks';
 $_LANG['storage_total'] = 'Total storage';
+$_LANG['storage_buy'] = 'Add storage';
 $_LANG['operating_system'] = 'Operating System';
 $_LANG['login_user'] = 'Username';
 $_LANG['login_password'] = 'Password';

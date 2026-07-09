@@ -208,9 +208,9 @@
 
     // --- backups / veeam / ftp ---
     // Build a restore control: a dropdown of point-in-time restore points plus a
-    // Restore button. `action` is the server action and `paramName` the field it
-    // expects (automated backup -> restore_point, Veeam -> restore_point_id). OVH
-    // returns points as bare ids/dates or as objects, so normalise each defensively.
+    // Restore button, wired to the automated-backup restore (`action` +
+    // `paramName`). OVH returns points as bare ids/dates or as objects, so
+    // normalise each defensively.
     function restoreControl(points, action, paramName) {
         var list = [];
         $.each(points || [], function (i, p) {
@@ -246,20 +246,6 @@
                 $w.append(restoreControl(d.restorePoints, "backup_restore", "restore_point"));
             }
             return $w;
-        });
-        // Veeam is a paid option with no free tier: lock it (and skip the OVH
-        // call) when it was not purchased. Automated Backup above stays open
-        // because its Standard tier is free for every VPS.
-        if (cfg.entitlements && cfg.entitlements.veeam) {
-            loadInto("#ovhvps_veeam_panel", "veeam_status", function (d) {
-                if (!d || !d.veeam) { return $("<p>").text(cfg.lang.veeam_not_enabled); }
-                return $("<div>").append(kvTable(d.veeam), restoreControl(d.restorePoints, "veeam_restore", "restore_point_id"));
-            });
-        } else {
-            $("#ovhvps_veeam_panel").empty().append(optionBlock());
-        }
-        loadInto("#ovhvps_ftp_panel", "ftp_status", function (d) {
-            return d ? kvTable(d) : $("<p>").text(cfg.lang.ftp_not_enabled);
         });
     }
 

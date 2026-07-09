@@ -11,7 +11,7 @@
         csrf: "{$csrf}",
         systemDisk: {$ovh.disk|default:0|intval},
         upgradeUrl: "{$upgradeUrl|default:''|escape:'javascript'}",
-        entitlements: { snapshot: {if $entitlements.snapshot}true{else}false{/if}, veeam: {if $entitlements.veeam}true{else}false{/if} },
+        entitlements: { snapshot: {if $entitlements.snapshot}true{else}false{/if} },
         lang: {
             working: "{$lang.js_working|default:'Working on your request…'|escape:'javascript'}",
             failed: "{$lang.js_failed|default:'The action failed.'|escape:'javascript'}",
@@ -173,10 +173,6 @@
 <div class="ovhvps-tab-pane" data-pane="backups">
     <h4>{$lang.backups_automated|default:'Automated Backup'}</h4>
     <div id="ovhvps_backup_panel">{$lang.loading|default:'Loading…'}</div>
-    <h4 style="margin-top:20px;">{$lang.backups_veeam|default:'Veeam Backup'}</h4>
-    <div id="ovhvps_veeam_panel">{$lang.loading|default:'Loading…'}</div>
-    <h4 style="margin-top:20px;">{$lang.backups_ftp|default:'Backup FTP'}</h4>
-    <div id="ovhvps_ftp_panel">{$lang.loading|default:'Loading…'}</div>
 </div>
 
 <div class="ovhvps-tab-pane" data-pane="storage">
@@ -192,6 +188,7 @@
     </div>
     <h4>{$lang.storage_additional_disks|default:'Additional disks'}</h4>
     <div id="ovhvps_disks_panel">{$lang.loading|default:'Loading…'}</div>
+    <a class="btn btn-default btn-sm" href="{$upgradeUrl|escape:'html'}" style="margin-top:12px;">{$lang.storage_buy|default:'Add storage'}</a>
 </div>
 
 <div class="ovhvps-tab-pane" data-pane="network">
