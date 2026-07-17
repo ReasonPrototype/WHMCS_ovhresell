@@ -116,6 +116,10 @@ class Lifecycle
         $client = OvhClient::fromParams($params);
 
         try {
+            // The service is going away: drop its cached reinstall-image list
+            // so the meta table does not accumulate dead entries.
+            Images::forget($serviceName);
+
             // Stop OVH auto-renewal so the reseller stops being billed. Best-effort:
             // a renewal error must NEVER make the WHMCS termination fail (that is
             // exactly the old "Arguments conflicting" bug this replaces).

@@ -204,47 +204,17 @@ class Actions
     }
 
     /**
-     * @return array{available: list<array{id:string,name:string}>, current: mixed}
+     * The reinstall dropdown only consumes `available`; the previously returned
+     * `current` image was never used client-side, so it is no longer fetched
+     * (one OVH call saved per Reinstall tab open).
+     *
+     * @return array{available: list<array{id:string,name:string}>}
      */
     private static function images(OvhClient $client, string $serviceName, array $params): array
     {
         return [
             'available' => self::allowedImages($client, $serviceName, $params),
-            'current' => self::safeGet($client, '/vps/' . $serviceName . '/images/current'),
         ];
-    }
-
-    /**
-     * Full OVH image catalogue for the VPS, expanded to {id,name}. /images/available
-     * returns bare ids; we expand each so names show instead of UUIDs. Cached 24h
-     * (the list is stable) to avoid N+1 detail calls on every Reinstall tab open.
-     *
-     * @return list<array{id:string,name:string}>
-     */
-    private static function availableImages(OvhClient $client, string $serviceName): array
-    {
-        $cacheKey = 'images:' . $serviceName;
-        $available = Database::getCache($cacheKey, 86400);
-        if (is_array($available)) {
-            return $available;
-        }
-        $ids = $client->get('/vps/' . $serviceName . '/images/available');
-        $available = [];
-        if (is_array($ids)) {
-            foreach ($ids as $id) {
-                $detail = self::safeGet($client, '/vps/' . $serviceName . '/images/available/' . rawurlencode((string) $id));
-                if (is_array($detail)) {
-                    $available[] = [
-                        'id' => (string) ($detail['id'] ?? $id),
-                        'name' => (string) ($detail['name'] ?? $detail['distribution'] ?? $id),
-                    ];
-                } else {
-                    $available[] = ['id' => (string) $id, 'name' => (string) $id];
-                }
-            }
-        }
-        Database::setCache($cacheKey, $available);
-        return $available;
     }
 
     /**
@@ -265,7 +235,7 @@ class Actions
      */
     private static function allowedImages(OvhClient $client, string $serviceName, array $params): array
     {
-        $all = self::availableImages($client, $serviceName);
+        $all = Images::cached($client, $serviceName);
 
         $serviceId = (int) ($params['serviceid'] ?? 0);
         $server = $serviceId > 0 ? (Database::getServer($serviceId) ?? []) : [];

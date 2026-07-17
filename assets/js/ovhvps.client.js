@@ -114,22 +114,66 @@
     });
 
     // --- reinstall ---
+    // The image list is served from a server-side cache the cron keeps warm, so
+    // this is normally instant. The loading/retry states cover a cold cache
+    // (the server expands the OVH catalogue one call per image, which can take
+    // tens of seconds) so the customer waits instead of refreshing the page.
+    var imagesLoaded = false;
+    var imagesLoading = false;
+
+    // Small status area right under the OS dropdown (spinner while loading,
+    // retry button on failure). Created on first use, reused afterwards.
+    function imagesNote() {
+        var $n = $("#ovhvps_images_note");
+        if (!$n.length) {
+            $n = $('<div id="ovhvps_images_note" style="margin-top:6px;"></div>').insertAfter("#ovhvps_image");
+        }
+        return $n;
+    }
+
     function loadImages() {
+        // The in-flight guard matters on a cold cache: re-clicking the tab must
+        // not fire a second request while the server is still expanding images.
+        if (imagesLoaded || imagesLoading) { return; }
+        imagesLoading = true;
+        $("#ovhvps_image").prop("disabled", true).empty()
+            .append($("<option>").text(cfg.lang.images_loading));
+        $("#ovhvps_reinstall").prop("disabled", true);
+        imagesNote().html('<span class="text-muted"><i class="fa fa-spinner fa-spin"></i></span>');
         call("images").done(function (res) {
-            if (!res || res.status !== "OK" || !res.data) { return; }
+            var list = (res && res.status === "OK" && res.data && res.data.available) || [];
+            if (!list.length) { imagesFailed(); return; }
             var $sel = $("#ovhvps_image").empty();
-            var list = res.data.available || [];
             $.each(list, function (i, img) {
                 var id = img.id || img.imageId || img;
                 var name = img.name || img.distribution || id;
                 $sel.append($("<option>").val(id).text(name));
             });
-        });
+            $sel.prop("disabled", false);
+            $("#ovhvps_reinstall").prop("disabled", false);
+            imagesNote().remove();
+            imagesLoaded = true;
+        }).fail(imagesFailed).always(function () { imagesLoading = false; });
+    }
+
+    // Failed or empty list: keep Reinstall disabled and offer an inline retry,
+    // so a slow or failed first build never needs a page refresh.
+    function imagesFailed() {
+        $("#ovhvps_image").empty().append($("<option>").text(cfg.lang.images_failed));
+        imagesNote().empty().append(
+            $('<button type="button" class="btn btn-default btn-sm"></button>')
+                .text(cfg.lang.images_retry)
+                .on("click", loadImages)
+        );
     }
 
     $(document).on("click", "#ovhvps_reinstall", function () {
         if (!window.confirm(cfg.lang.confirm_reinstall)) { return; }
-        run("reinstall", { image_id: $("#ovhvps_image").val() });
+        run("reinstall", { image_id: $("#ovhvps_image").val() }).done(function (res) {
+            // A reinstall changes the current OS, which can change which images
+            // the family policy allows; refetch on the next tab open.
+            if (res && res.status !== "Error") { imagesLoaded = false; }
+        });
     });
 
     // --- snapshots ---

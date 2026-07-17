@@ -78,6 +78,14 @@ class Cron
                 } catch (\Throwable $e) {
                     Helper::log('ensureAutoRenew', ['service' => $name], $e->getMessage(), false, $serviceId);
                 }
+                // Pre-warm the reinstall-image cache while we hold the client,
+                // so the customer's first Reinstall tab open is instant. Non
+                // fatal: the refresh pass below retries on a later tick.
+                try {
+                    Images::warm($client, $name);
+                } catch (\Throwable $e) {
+                    Helper::log('cron:images', ['service' => $name], $e->getMessage(), false, $serviceId);
+                }
                 Helper::log('cron:resolve', ['service_id' => $serviceId], ['service_name' => $name], true, $serviceId);
                 $resolved++;
             } catch (\Throwable $e) {
@@ -159,6 +167,15 @@ class Cron
             Watchdog::runIfDue();
         } catch (\Throwable $e) {
             Helper::log('cron:watchdog', null, $e->getMessage(), false);
+        }
+
+        // Keep the reinstall-image cache warm for every active service, a few
+        // per tick, so a customer opening the Reinstall tab never waits on the
+        // cold N+1 image expansion.
+        try {
+            self::refreshImageCaches();
+        } catch (\Throwable $e) {
+            Helper::log('cron:images', null, $e->getMessage(), false);
         }
 
         return ['resolved' => $resolved, 'pending' => $stillPending];
@@ -309,17 +326,55 @@ class Cron
     private static function imageIdForOs(OvhClient $client, string $serviceName, string $os): string
     {
         $os = trim($os);
-        $ids = $client->get('/vps/' . $serviceName . '/images/available');
-        if (is_array($ids) && $os !== '') {
-            foreach ($ids as $id) {
-                $detail = $client->get('/vps/' . $serviceName . '/images/available/' . rawurlencode((string) $id));
-                $name = is_array($detail) ? (string) ($detail['name'] ?? '') : '';
-                if ($name !== '' && stripos($name, $os) !== false) {
-                    return (string) ($detail['id'] ?? $id);
+        if ($os !== '') {
+            // Shares (and warms) the same cache the client Reinstall tab reads,
+            // instead of re-running the N+1 detail expansion here.
+            foreach (Images::cached($client, $serviceName) as $img) {
+                if ($img['name'] !== '' && stripos($img['name'], $os) !== false) {
+                    return $img['id'];
                 }
             }
         }
         throw new \RuntimeException('No matching OVH image id for OS "' . $os . '"');
+    }
+
+    /**
+     * Re-warm reinstall-image caches that are close to expiring (or missing)
+     * for active services, so customers always hit a warm cache on the
+     * Reinstall tab. Bounded per tick: warming a service is an N+1 of OVH
+     * calls, so a few services per cron run is plenty (each cache lasts 24h
+     * and goes stale after 20h). Failures count against the bound too, so a
+     * broken OVH endpoint cannot make this pass hammer every service in one
+     * tick; the previous cache entry keeps being served meanwhile.
+     */
+    private static function refreshImageCaches(): void
+    {
+        $rows = Capsule::table(Database::SERVERS)
+            ->join('tblhosting', 'tblhosting.id', '=', Database::SERVERS . '.service_id')
+            ->where('tblhosting.domainstatus', 'Active')
+            ->whereNotNull(Database::SERVERS . '.service_name')
+            ->select(Database::SERVERS . '.service_id', Database::SERVERS . '.service_name')
+            ->get();
+
+        $touched = 0;
+        foreach ($rows as $row) {
+            $serviceName = (string) $row->service_name;
+            if ($serviceName === '' || !Images::isStale($serviceName)) {
+                continue;
+            }
+            $params = Helper::paramsForService((int) $row->service_id);
+            if ($params === null) {
+                continue;
+            }
+            try {
+                Images::warm(OvhClient::fromParams($params), $serviceName);
+            } catch (\Throwable $e) {
+                Helper::log('cron:images', ['service' => $serviceName], $e->getMessage(), false, (int) $row->service_id);
+            }
+            if (++$touched >= Images::REFRESH_BATCH) {
+                break;
+            }
+        }
     }
 
     /**

@@ -108,7 +108,7 @@ class AdminActions
                     if ($serviceName === null) {
                         return self::err('No serviceName yet; nothing is cached.');
                     }
-                    Database::forgetCache('images:' . $serviceName);
+                    Images::forget($serviceName);
                     return self::ok('Reinstall image cache cleared; it rebuilds on the next Reinstall tab open.');
 
                 case 'admin_order_info':

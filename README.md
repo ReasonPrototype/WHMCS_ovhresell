@@ -104,6 +104,7 @@ ovhvps/
 │   ├── Term.php          # WHMCS billing cycle → OVH (duration, pricingMode)
 │   ├── Upgrade.php        # ChangePackage: add paid options to an existing VPS
 │   ├── Actions.php       # Client+admin VPS actions (power, console, snapshots, ...)
+│   ├── Images.php        # Reinstall-image catalogue cache (kept warm by the cron)
 │   ├── AdminActions.php  # Admin-only actions (sync, generate, retry, confirm, ...)
 │   ├── Cron.php          # Background reconciliation of pending provisioning
 │   └── Database.php      # Schema + data access for the module's mod_ovhvps_* tables
