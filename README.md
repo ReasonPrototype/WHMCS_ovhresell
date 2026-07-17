@@ -1,5 +1,6 @@
 # 🖥️ WHMCS OVHcloud reseller module
 
+![Version](https://img.shields.io/badge/version-1.1.0-089bd6)
 ![WHMCS](https://img.shields.io/badge/WHMCS-9.0.x-1c4587)
 ![PHP](https://img.shields.io/badge/PHP-8.2%20%7C%208.3-777bb4)
 ![OVHcloud](https://img.shields.io/badge/OVHcloud-VPS%20API%20v6-123f6d)
@@ -22,25 +23,54 @@ Plesk images are never offered (their licenses would be billed to you).
 
 ## 📑 Table of contents
 
-1. [What it does / does not do](#-what-it-does)
-2. [How the code is organised](#-how-the-code-is-organised)
-3. [Requirements](#-requirements)
-4. [Installation (cPanel, no SSH)](#-installation-cpanel-no-ssh)
-5. [OVH API credentials](#-ovh-api-credentials)
-6. [Configure the server in WHMCS](#-configure-the-server-in-whmcs)
-7. [Create and configure a product](#-create-and-configure-a-product)
-8. [Plan codes](#-plan-codes)
-9. [Billing: WHMCS cycle to OVH commitment](#-billing-whmcs-cycle-to-ovh-commitment)
-10. [Stock / availability](#-stock--availability)
-11. [How it works (lifecycle)](#-how-it-works-lifecycle)
-12. [OS images (Docker, n8n, Windows)](#-os-images-docker-n8n-windows)
-13. [Useful commands](#-useful-commands)
-14. [Testing](#-testing)
-15. [Localization note](#-localization-note)
-16. [Security notes](#-security-notes)
-17. [Roadmap](#-roadmap)
-18. [Disclaimer & trademarks](#-disclaimer--trademarks)
-19. [License](#-license)
+1. [What's new in 1.1.0](#-whats-new-in-110)
+2. [What it does / does not do](#-what-it-does)
+3. [How the code is organised](#-how-the-code-is-organised)
+4. [Requirements](#-requirements)
+5. [Installation (cPanel, no SSH)](#-installation-cpanel-no-ssh)
+6. [OVH API credentials](#-ovh-api-credentials)
+7. [Configure the server in WHMCS](#-configure-the-server-in-whmcs)
+8. [Create and configure a product](#-create-and-configure-a-product)
+9. [Plan codes](#-plan-codes)
+10. [Billing: WHMCS cycle to OVH commitment](#-billing-whmcs-cycle-to-ovh-commitment)
+11. [Stock / availability](#-stock--availability)
+12. [How it works (lifecycle)](#-how-it-works-lifecycle)
+13. [OS images (Docker, n8n, Windows)](#-os-images-docker-n8n-windows)
+14. [Useful commands](#-useful-commands)
+15. [Testing](#-testing)
+16. [Localization note](#-localization-note)
+17. [Security notes](#-security-notes)
+18. [Roadmap](#-roadmap)
+19. [Disclaimer & trademarks](#-disclaimer--trademarks)
+20. [License](#-license)
+
+---
+
+## 🆕 What's new in 1.1.0
+
+Released 2026-07-17. Highlights since 1.0.0:
+
+- **Instant Reinstall OS list.** The image list on the Reinstall tab is served from a
+  cache the cron keeps permanently warm (pre-warmed on delivery, refreshed before it
+  expires, dropped on termination), so it loads instantly instead of waiting on dozens
+  of sequential OVH calls. The tab also gained a loading indicator and a retry button.
+- **Paid options gate their tabs.** Snapshot is a paid OVH option with no free tier, so
+  the client *Snapshots* tab unlocks only when the service was bought with that option;
+  otherwise it shows an "Add this option" button that jumps to the service's
+  configure-options page.
+- **Backups tab focused on what is sold.** The free Automated Backup (Standard) panel
+  now includes **point-in-time restore** (pick a restore point, one click); the unsold
+  Veeam and Backup-FTP panels were removed.
+- **Storage upsell.** The Storage tab totals the system disk + additional disks and
+  offers an "Add storage" button straight to the configure-options page.
+- **Snapshot UX.** Creating a snapshot polls until it lands (the panel refreshes
+  itself), and Revert/Delete stay disabled while no snapshot exists.
+- **Cancellation hardening.** Customer cancellations and admin terminations pause OVH
+  auto-renewal (no email token needed); the admin panel gained pause/resume
+  auto-renew buttons. Suspending an unpaid service also pauses its renewal.
+- **Windows delivered manually**, **Docker/n8n access emails**, **Portuguese email
+  templates**, and the **catalog watchdog** with a margin recap - detailed in the
+  sections below.
 
 ---
 
@@ -59,8 +89,8 @@ Plesk images are never offered (their licenses would be billed to you).
 | **Catalog watchdog** | Daily diff of the live OVH catalog against the synced copy, for the plans you sell: plan withdrawn, OS images added/retired, addons changed, any price change. One admin email per upstream change, with a WHMCS-price vs OVH-price margin recap, so you re-check your margins before accepting the new catalog. |
 | **Suspend / unsuspend** | Maps to OVH `stop` / `start`. |
 | **Automatic cancellation** | On a cancellation request the module pauses OVH auto-renewal (`renew.automatic=false`, no email token) so OVH stops billing you; the VPS keeps running until the paid term ends and then lapses (OVH deletes it after its grace period). |
-| **Option & model upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`). It also upgrades the VPS to a bigger model in place (`ChangePackage` to a larger plan, via OVH `order/upgrade`). Both are add-only, auto-paid, and gated (orderability/`availableUpgrade` + a dry-run before every charge). |
-| **Customer control panel** | Power, VNC console, OS reinstall, snapshots, automated backups, Veeam, additional disks, IPs + reverse DNS, secondary DNS. Every service gets the full panel; Linux images (Docker and n8n included) also get the automated root-access bootstrap and access email. |
+| **Option & model upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`). It also upgrades the VPS to a bigger model in place (`ChangePackage` to a larger plan, via OVH `order/upgrade`). Both are add-only, auto-paid, and gated (orderability/`availableUpgrade` + a dry-run before every charge). When the in-place model upgrade settles, the customer gets the **"OVH VPS Upgrade Complete"** email with the new specs. |
+| **Customer control panel** | Power, VNC console, OS reinstall (image list served instantly from a cron-warmed cache, with a loading/retry state), snapshots (paid OVH option: the tab unlocks when the service includes it, otherwise it shows an upgrade button), automated backups with point-in-time restore (free Standard tier, always available), additional disks with an "Add storage" upsell, IPs + reverse DNS, secondary DNS. Every service gets the full panel; Linux images (Docker and n8n included) also get the automated access bootstrap and access email. |
 | **n8n tab** | When the installed OS is an n8n image, the client area shows an **n8n** tab with the editor URL (port 5678 by default) IN ADDITION to all the normal tabs. |
 | **Admin service panel** | All client actions plus admin-only controls: sync catalog, generate options, retry provisioning, set `serviceName` manually, confirm immediate termination, pause/resume OVH auto-renew, and view OVH cost (your margin). |
 | **Audit trail** | Every OVH API call and order step is logged to the WHMCS module log and to the module's own task-log table. Each order records the OVH dry-run cost for margin auditing. |
@@ -225,6 +255,9 @@ Then put this server in a **Server Group** and link your products to that group.
    Windows markup if you sell Windows); set the **price of the extras** (Backup, Snapshot,
    Disk, IP, Veeam) in the WHMCS native *Configurable Options* editor. Out-of-stock
    datacenters become unavailable automatically (see [Stock](#-stock--availability)).
+   Note: **Snapshot** is a paid OVH option with no free tier - buying it is also what
+   unlocks the client-area *Snapshots* tab. The Automated Backup **Standard** tier is
+   free and always available to every service (never gated).
 6. Clicking **Generate OVH options** again **syncs** the options with the catalog:
    existing options **keep their prices**, new catalog entries are added at price 0, and
    options no longer offered (e.g. an image OVH retired, or the excluded cPanel/Plesk
@@ -335,12 +368,15 @@ order right now. The module keeps WHMCS in sync:
   additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS
   (`cartServiceOption`); it also upgrades the VPS to a bigger model in place via OVH
   `order/upgrade`. Both are *add-only*, auto-paid, and gated (orderability/`availableUpgrade`
-  + dry-run); the model resize reboots the VPS and the cron refreshes the model afterwards.
+  + dry-run); the model resize reboots the VPS, the cron refreshes the model afterwards
+  and emails the customer the **"OVH VPS Upgrade Complete"** summary.
   Removals and downgrades are refused with a message.
-- **Client area**: power, VNC console, OS reinstall, snapshots, backups, Veeam, disks,
-  IPs + reverse DNS, secondary DNS - the full panel for every service, plus an **n8n**
-  tab shown automatically (in addition to the normal tabs) when the installed OS is an
-  n8n image.
+- **Client area**: power, VNC console, OS reinstall (instant image list from the
+  cron-warmed cache), snapshots (tab locked behind the paid Snapshot option, with an
+  upgrade button when missing), automated backups with point-in-time restore, disks +
+  "Add storage" upsell, IPs + reverse DNS, secondary DNS - the full panel for every
+  service, plus an **n8n** tab shown automatically (in addition to the normal tabs)
+  when the installed OS is an n8n image.
 - **Admin service panel**: every client action + sync catalog, generate options, retry
   provisioning, set `serviceName`, confirm termination, toggle delete-at-expiration, and
   cost/margin info.
@@ -356,6 +392,14 @@ System** dropdown lists the plan's catalog images and the customer picks one. Be
 choice comes from the OS option, the module attaches the matching OVH license addon (free
 Linux, paid Windows) automatically, so the cart is always complete and the license can never
 be mismatched.
+
+The **Docker and n8n images are included in the OS choices of every installation, at no
+extra cost, because of how they are licensed**: Docker Engine is open source and n8n is
+fair-code (free to self-host), so OVH ships them as free image variants - there is no
+license fee for you or your customer, and any Linux service can reinstall into or out of
+them freely. License-fee images work differently: Windows attaches a **paid OVH license**
+(you set the markup), and cPanel/Plesk are **never offered** because their licenses would
+be billed to you.
 
 Image policy, enforced server-side at generation AND at reinstall:
 
@@ -373,16 +417,24 @@ access, password change, ...); when the installed image is n8n, an extra **n8n**
 with the editor URL (port 5678 by default). Reinstall to a plain distro and the tab
 disappears; reinstall to n8n and it comes back.
 
-**Access emails.** Every delivered or reinstalled **Linux** VPS goes through the SSH access
-bootstrap and receives the **"OVH VPS Access Ready"** email (root user + password). On top of
-that, the app images get their own heads-up: **"OVH n8n Access Ready"** with the editor URL
-when the installed image is n8n (the owner account is created on the first browser visit;
-reinstalling resets it), and **"OVH Docker Ready"** with the Docker quick-start when the
-installed image is Docker. The app emails follow the INSTALLED image, so every reinstall into
-(or out of) an app image re-sends exactly the emails that match the new installation. The
-templates are module-managed: an English base plus a Portuguese variant registered for both
-the `portuguese` and `portuguese-pt` client languages (any other language falls back to
-English).
+**Emails.** All customer templates are **module-managed** (created and updated
+automatically, no manual template setup): an English base plus a Portuguese variant
+registered for both the `portuguese` and `portuguese-pt` client languages (any other
+language falls back to English). Passwords are injected at send time and never stored.
+
+| Template | When it is sent |
+|---|---|
+| **OVH VPS Access Ready** | Every delivered or reinstalled **Linux** VPS, after the SSH access bootstrap. Login is the image's default sudo user (e.g. `debian`) with the generated password; the same password is also set for `root` (reachable via the KVM console). |
+| **OVH n8n Access Ready** | IN ADDITION, when the installed image is n8n: the editor URL. The owner account is created on the first browser visit; reinstalling resets it. |
+| **OVH Docker Ready** | IN ADDITION, when the installed image is Docker: the Docker quick-start. |
+| **OVH VPS Windows Ready** | Windows delivery heads-up, credential-free (see the note below). |
+| **OVH VPS Password Changed** | Confirmation after the customer changes the VPS password from the panel (no password echoed). |
+| **OVH VPS Upgrade Complete** | When an in-place model upgrade finishes (the VPS is back to running): includes the new product's specs. |
+
+The app emails follow the INSTALLED image, so every reinstall into (or out of) an app image
+re-sends exactly the emails that match the new installation. The reseller side gets **admin
+emails** that need no template setup: the daily **catalog watchdog** digest (upstream
+plan/image/price changes + margin recap) and the **manual Windows delivery** notice.
 
 > ⚠️ **Windows is delivered manually.** There is no SSH bootstrap on Windows and the module
 > never rebuilds a delivered Windows VPS (that would wipe the OVH-installed licensed Windows).
@@ -420,6 +472,7 @@ To force it by hand (if you have access): `php -q <whmcs>/crons/cron.php`.
 # Offline unit tests (pure logic, no WHMCS/network):
 php -n tests/term_test.php          # expects "ALL TESTS PASSED"
 php -n tests/upgrade_test.php
+# more suites live in tests/ (access, configoptions, catalog, watchdog, ...)
 
 # Lint a single file:
 php -n -l lib/Term.php
@@ -440,8 +493,10 @@ After rebuilding `vendor/`, package the `ovhvps/` folder **with** `vendor/` and 
 
 ## 🧪 Testing
 
-- **Offline unit tests** cover the pure logic (billing-term mapping, option diffing). Run
-  `php -n tests/term_test.php` and `php -n tests/upgrade_test.php` (expect `ALL TESTS PASSED`).
+- **Offline unit tests** cover the pure logic (billing-term mapping, option diffing,
+  image family/reinstall policy, access bootstrap rules, catalog parsing, watchdog
+  diffing). Run `php -n tests/term_test.php` and `php -n tests/upgrade_test.php`
+  (expect `ALL TESTS PASSED`); the other suites under `tests/` run the same way.
 - **Live validation:** the WHMCS/OVH paths can only be fully confirmed against a real
   account. Place one real order with the cheapest plan you can order, then watch
   *Utilities -> Logs -> Module Log* (filter `ovhvps`) to confirm order acceptance,
