@@ -66,7 +66,32 @@ class AdminActions
                     }
                     Lifecycle::stopRenewal(OvhClient::fromParams($params), $serviceName);
                     Database::upsertServer($serviceId, ['delete_at_expiration' => 1]);
-                    return self::ok('OVH auto-renew paused; the VPS will not be re-billed and lapses at expiration.');
+                    // OVH is paused; now schedule the WHMCS side too. Without this
+                    // the service stays Active and keeps invoicing after OVH
+                    // expires the VPS. The AddCancelRequest call re-fires our
+                    // CancellationRequest hook, whose second stopRenewal is an
+                    // idempotent no-op (renew.automatic is already false).
+                    $plan = Cancellation::planStop(self::hasCancellationRequest($serviceId));
+                    if ($plan['addRequest']) {
+                        try {
+                            if (!function_exists('localAPI')) {
+                                throw new \RuntimeException('localAPI unavailable in this context');
+                            }
+                            $api = localAPI('AddCancelRequest', [
+                                'serviceid' => $serviceId,
+                                'type' => Cancellation::TYPE_END_OF_PERIOD,
+                                'cancellationreason' => Cancellation::REASON,
+                            ]);
+                            if (($api['result'] ?? '') !== 'success') {
+                                throw new \RuntimeException((string) ($api['message'] ?? 'unknown AddCancelRequest error'));
+                            }
+                            Helper::log('admin:stop_renew', ['service_id' => $serviceId], 'cancellation request registered', true, $serviceId);
+                        } catch (\Throwable $e) {
+                            Helper::log('admin:stop_renew', ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
+                            return self::err(Cancellation::stopRegisterFailed($e->getMessage()));
+                        }
+                    }
+                    return self::ok($plan['message']);
 
                 case 'admin_resume_renew':
                     $serviceName = Lifecycle::serviceName($params);
@@ -75,7 +100,14 @@ class AdminActions
                     }
                     Lifecycle::ensureAutoRenew(OvhClient::fromParams($params), $serviceName);
                     Database::upsertServer($serviceId, ['delete_at_expiration' => 0]);
-                    return self::ok('OVH auto-renew resumed. Remember to also remove the pending cancellation in WHMCS.');
+                    // Take the WHMCS-side cancellation back out, otherwise WHMCS
+                    // still cancels the service at its due date.
+                    $plan = Cancellation::planResume(self::hasCancellationRequest($serviceId));
+                    if ($plan['removeRequest']) {
+                        Capsule::table('tblcancelrequests')->where('pkgid', $serviceId)->delete();
+                        Helper::log('admin:resume_renew', ['service_id' => $serviceId], 'cancellation request removed', true, $serviceId);
+                    }
+                    return self::ok($plan['message']);
 
                 case 'admin_resync_info':
                     $serviceName = Lifecycle::serviceName($params);
@@ -133,6 +165,16 @@ class AdminActions
             Helper::log('admin:' . $action, ['service_id' => $serviceId], $e->getMessage(), false, $serviceId);
             return self::err($e->getMessage());
         }
+    }
+
+    /**
+     * Whether any cancellation request is on file for this service. WHMCS keeps
+     * the row after processing, so on an Active service any row means "pending"
+     * (which is also how the WHMCS admin UI reports it).
+     */
+    private static function hasCancellationRequest(int $serviceId): bool
+    {
+        return Capsule::table('tblcancelrequests')->where('pkgid', $serviceId)->exists();
     }
 
     /**

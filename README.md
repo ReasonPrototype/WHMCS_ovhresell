@@ -88,11 +88,11 @@ Released 2026-07-17. Highlights since 1.0.0:
 | **Live stock control** | Hourly check of OVH stock per plan and per datacenter, driving WHMCS native stock control. Out-of-stock datacenters render as disabled options in the cart. |
 | **Catalog watchdog** | Daily diff of the live OVH catalog against the synced copy, for the plans you sell: plan withdrawn, OS images added/retired, addons changed, any price change. One admin email per upstream change, with a WHMCS-price vs OVH-price margin recap, so you re-check your margins before accepting the new catalog. |
 | **Suspend / unsuspend** | Maps to OVH `stop` / `start`. |
-| **Automatic cancellation** | On a cancellation request the module pauses OVH auto-renewal (`renew.automatic=false`, no email token) so OVH stops billing you; the VPS keeps running until the paid term ends and then lapses (OVH deletes it after its grace period). |
+| **Automatic cancellation** | On a cancellation request the module pauses OVH auto-renewal (`renew.automatic=false`, no email token) so OVH stops billing you; the VPS keeps running until the paid term ends and then lapses (OVH deletes it after its grace period). The admin *Pause Renewal* button drives the same flow end to end: it pauses OVH auto-renewal AND registers a WHMCS cancellation request (End of Billing Period), so WHMCS cancels the service and stops invoicing at the due date instead of leaving it Active forever; *Resume Auto-Renew* undoes both. |
 | **Option & model upgrades** | When a customer buys an extra (backup, snapshot, additional disk, IP, Veeam) mid-term, the module orders it on the existing VPS (`cartServiceOption`). It also upgrades the VPS to a bigger model in place (`ChangePackage` to a larger plan, via OVH `order/upgrade`). Both are add-only, auto-paid, and gated (orderability/`availableUpgrade` + a dry-run before every charge). When the in-place model upgrade settles, the customer gets the **"OVH VPS Upgrade Complete"** email with the new specs. |
-| **Customer control panel** | Power, VNC console, OS reinstall (image list served instantly from a cron-warmed cache, with a loading/retry state), snapshots (paid OVH option: the tab unlocks when the service includes it, otherwise it shows an upgrade button), automated backups with point-in-time restore (free Standard tier, always available), additional disks with an "Add storage" upsell, IPs + reverse DNS, secondary DNS. Every service gets the full panel; Linux images (Docker and n8n included) also get the automated access bootstrap and access email. |
+| **Customer control panel** | Power, VNC console, OS reinstall (image list served instantly from a cron-warmed cache, with a loading/retry state), snapshots (paid OVH option: the tab unlocks when the service includes it, otherwise it shows an upgrade button), automated backups with point-in-time restore (the mandatory Standard tier ships with every service; a paid OVH option since the 2027 range), additional disks with an "Add storage" upsell, IPs + reverse DNS, secondary DNS. Every service gets the full panel; Linux images (Docker and n8n included) also get the automated access bootstrap and access email. |
 | **n8n tab** | When the installed OS is an n8n image, the client area shows an **n8n** tab with the editor URL (port 5678 by default) IN ADDITION to all the normal tabs. |
-| **Admin service panel** | All client actions plus admin-only controls: sync catalog, generate options, retry provisioning, set `serviceName` manually, confirm immediate termination, pause/resume OVH auto-renew, and view OVH cost (your margin). |
+| **Admin service panel** | All client actions plus admin-only controls: sync catalog, generate options, retry provisioning, set `serviceName` manually, confirm immediate termination, pause/resume auto-renew (kept in sync with a WHMCS cancellation request), and view OVH cost (your margin). |
 | **Audit trail** | Every OVH API call and order step is logged to the WHMCS module log and to the module's own task-log table. Each order records the OVH dry-run cost for margin auditing. |
 
 ### ❌ What it does NOT do (and why)
@@ -237,7 +237,7 @@ Then put this server in a **Server Group** and link your products to that group.
    | Field | Value / example |
    |---|---|
    | **OVH Subsidiary** | `PT` (the default; must match the account country) |
-   | **VPS Plan Code** | from the [plan table](#-plan-codes), e.g. `vps-2025-model1` |
+   | **VPS Plan Code** | from the [plan table](#-plan-codes), e.g. `vps-2027-model1` |
    | **Billing Duration** | `P1M` *(fallback - see [Billing](#-billing-whmcs-cycle-to-ovh-commitment))* |
    | **Pricing Mode** | `default` *(fallback)* |
    | **Default OS** | e.g. `Debian 12` (fallback only, used if the customer does not pick one; use a plain free Linux image) |
@@ -256,8 +256,9 @@ Then put this server in a **Server Group** and link your products to that group.
    Disk, IP, Veeam) in the WHMCS native *Configurable Options* editor. Out-of-stock
    datacenters become unavailable automatically (see [Stock](#-stock--availability)).
    Note: **Snapshot** is a paid OVH option with no free tier - buying it is also what
-   unlocks the client-area *Snapshots* tab. The Automated Backup **Standard** tier is
-   free and always available to every service (never gated).
+   unlocks the client-area *Snapshots* tab. Since the 2027 range the Automated Backup
+   **Standard** tier is a paid, **mandatory** OVH option (the family has no "None"
+   value, so every order includes at least Standard) - price it above your OVH cost.
 6. Clicking **Generate OVH options** again **syncs** the options with the catalog:
    existing options **keep their prices**, new catalog entries are added at price 0, and
    options no longer offered (e.g. an image OVH retired, or the excluded cPanel/Plesk
@@ -274,16 +275,18 @@ Then put this server in a **Server Group** and link your products to that group.
 One product = one plan. Codes for the current range (subsidiary PT) - write into the
 **VPS Plan Code** field:
 
-| planCode            | Product |
-|---------------------|---------|
-| `vps-2025-model1`   | VPS-1   |
-| `vps-2025-model2`   | VPS-2   |
-| `vps-2025-model3`   | VPS-3   |
-| `vps-2025-model4`   | VPS-4   |
-| `vps-2025-model5`   | VPS-5   |
-| `vps-2025-model6`   | VPS-6   |
+| planCode            | Product (invoice name) | Notes |
+|---------------------|------------------------|-------|
+| `vps-2027-model1`   | VPS-1 2027             | no Windows option on this model |
+| `vps-2027-model2`   | VPS-2 2027             | |
+| `vps-2027-model3`   | VPS-3 2027             | |
+| `vps-2027-model4`   | VPS-4 2027             | |
 
-**Do not use** the `-degressivity*` / `-10percent` variants or older ranges
+The previous range (`vps-2025-model1..6`, invoiced as "VPS-x 2026") is still in the
+catalog and keeps serving existing services; new products should use the 2027 codes
+above. The numbering shifts between ranges (VPS-4 2027 has the specs of the old
+VPS-3 2026) - compare specs, not invoice names. **Do not use** the `.LZ` local-zone
+variants, the `-degressivity*` / `-10percent` variants, or older ranges
 (`vps-value-*`, `vps-essential-*`, ...). To inspect your account's catalog (public, no
 auth required):
 
@@ -362,6 +365,10 @@ order right now. The module keeps WHMCS in sync:
 - **Cancellation** (`TerminateAccount` + the `CancellationRequest` hook): pauses OVH
   auto-renewal (`renew.automatic=false`) so OVH stops billing you; the VPS lapses at the end
   of the paid term. Runs for both customer cancellations and admin terminations.
+  The admin *Pause Renewal* button additionally registers a WHMCS cancellation request
+  (End of Billing Period) so WHMCS itself cancels the service and stops invoicing at the
+  due date; *Resume Auto-Renew* removes that request again. Without the request, a paused
+  service would stay Active in WHMCS (and keep invoicing) after OVH expires the VPS.
 - **Auto-renew**: guaranteed after delivery (synchronous path and via cron) so multi-year
   terms survive past the first engagement.
 - **Upgrades** (`ChangePackage`): when the customer buys an extra (backup, snapshot,
@@ -378,8 +385,8 @@ order right now. The module keeps WHMCS in sync:
   service, plus an **n8n** tab shown automatically (in addition to the normal tabs)
   when the installed OS is an n8n image.
 - **Admin service panel**: every client action + sync catalog, generate options, retry
-  provisioning, set `serviceName`, confirm termination, toggle delete-at-expiration, and
-  cost/margin info.
+  provisioning, set `serviceName`, confirm termination, pause/resume renewal (synced with
+  a WHMCS cancellation request), and cost/margin info.
 
 ---
 
